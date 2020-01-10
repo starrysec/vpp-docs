@@ -73,11 +73,13 @@ FIB数据模型包括两个部分：控制平面(CP)和数据平面(DP)。控制
   配置如下：
 
   > $ set interface 192.168.1.1/24 GigabitEthernet0/8/0
+  
   结果增加了两个FIB条目；192.168.1.0/24是已连接(Connected)并附加(Attached)的，以及192.168.1.1/32是已连接(Connected)并是本地(Local)的（又称接收或使用）。这两个前缀都是接口来源(interface sourced)的。接口源具有较高的优先级，因此意外或恶意添加相同的前缀不会阻止路由器正确转发。匹配所连接前缀的数据包将为数据包目标地址生成ARP请求，此过程称为收集(glean)。
 
   附加的前缀也会产生glean，但路由器在该子网中没有自己的地址。以下配置将产生一条附加路由，该路由通过一条附加路径进行解析:
 
   > $ ip route add table X 10.10.10.0/24 via gre0
+
   如前所述，这些仅适用于点对点链接(Ponit-to-Point)。附加主机前缀(attached-host prefix)被附加前缀(attached prefix)覆盖（请注意，已附加连接前缀）。如果表X不是gre0绑定到的表，那么附加导出就是这种情况（请参见：[附加导出]()一节）。
 
   - 邻接源FIB条目(Adjacency source FIB entries)
