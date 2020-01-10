@@ -27,6 +27,17 @@ FIB数据模型包括两个部分：控制平面(CP)和数据平面(DP)。控制
 控制平面遵循分层数据表示。本文档介绍了从最低层开始的模型。该描述使用IPv4地址和协议，但是所有概念均等同地适用于IPv6。这些图都描绘了用于在VPP中安装信息的CLI命令以及用于表示该信息的数据结构的UML图的近似图。
 
 * ARP条目(ARP Entries)
+  ![ARP数据模型](https://github.com/penybai/vpp-docs/blob/master/images/arp-entries.png)
+  图1：ARP数据模型
+
+  图1显示了ARP条目的数据模型。ARP条目包含由IPv4地址标识的对等方(peer)与其给定接口上的MAC地址之间的映射。接口绑定的VRF，不是数据的一部分。VRF是入口函数，而不是出口。ARP条目描述了如何向对等方发送流量，这是一种出口功能。
+
+  arp_entry_t表示在控制平面上添加的ARP条目。ip_adjacency_t包含从arp_entry_t派生的数据，这些数据是将数据包转发到对等方所需要的。邻接中的其他数据是rewrite和link_type。link_type是需要邻居转发的数据包中的协议描述，可以是IPv4或MPLS。link_type直接映射到以太网头中的以太类型，或GRE头中归档的协议。rewrite是报头的字节字符串表示形式，当发送到该对等方时，该报头将附加在该数据包之前。对于以太网接口，这将是src、dst MAC和ether-type。对于LISP隧道，使用IP src、dst对和LISP头。
+
+  创建条目时，arp_entry_t将安装link_type = IPv4，而当接口启用MPLS时将安装link_type = MPLS。出于安全原因，必须为接口明确启用MPLS。
+
+  这样就可以在路由之间共享邻接关系，将邻接关系存储在一个数据库中，该数据库的关键字为{interface，next-hop，link-type}。
+
 * 路由(Routes)
   - FIB源(FIB sources)
   - 邻接源的FIB条目(Adjacency source FIB entries)
