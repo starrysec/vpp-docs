@@ -73,7 +73,7 @@ FIB数据模型包括两个部分：控制平面(CP)和数据平面(DP)。控制
   配置如下：
 
   > $ set interface 192.168.1.1/24 GigabitEthernet0/8/0
-  
+
   结果增加了两个FIB条目；192.168.1.0/24是已连接(Connected)并附加(Attached)的，以及192.168.1.1/32是已连接(Connected)并是本地(Local)的（又称接收或使用）。这两个前缀都是接口来源(interface sourced)的。接口源具有较高的优先级，因此意外或恶意添加相同的前缀不会阻止路由器正确转发。匹配所连接前缀的数据包将为数据包目标地址生成ARP请求，此过程称为收集(glean)。
 
   附加的前缀也会产生glean，但路由器在该子网中没有自己的地址。以下配置将产生一条附加路由，该路由通过一条附加路径进行解析:
@@ -83,7 +83,37 @@ FIB数据模型包括两个部分：控制平面(CP)和数据平面(DP)。控制
   如前所述，这些仅适用于点对点链接(Ponit-to-Point)。附加主机前缀(attached-host prefix)被附加前缀(attached prefix)覆盖（请注意，已附加连接前缀）。如果表X不是gre0绑定到的表，那么附加导出就是这种情况（请参见：[附加导出]()一节）。
 
   - 邻接源FIB条目(Adjacency source FIB entries)
+
+  无论何时一个ARP条目被创建时，它将引出一条fib_entry_t，在这种情况下，路由是这种形式：
+
+  > $ ip route add table X 10.0.0.1/32 via 10.0.0.1 GigabitEthernet0/8/0
+  
+  它是一个主机前缀(host prefix)，其路径的下一跳地址相同。该路由强调了路由前缀（要匹配的流量的描述）和路径（匹配的流量的发送位置）之间的区别。 表X是接口绑定到的同一表。由邻接来源产生的FIB条目称为邻接fib。邻接源的优先级低于API源，因此以下配置：
+
+  > $ set interface address 192.168.1.1/24 GigabitEthernet0/8/0
+  > $ ip arp 192.168.1.2 GigabitEthernet0/8/0 dead.dead.dead
+  > $ ip route add 192.168.1.2 via 10.10.10.10 GigabitEthernet1/8/0
+
+  将通过GigabitEthernet1/8/0转发192.168.1.2的流量。也就是说，控制平面添加的路由比ARP发现的邻接更受青睐。控制平面及其相关的身份验证被视为权威来源。为了通过恶意注入邻接来抵消有害添加的恶作剧，FIB还需要确保在转发中仅安装附有覆盖范围较小的前缀的adj-fib。这需要使用覆盖跟踪，其中路由与路由的依存关系（即其覆盖性较弱）保持依赖关系。当此覆盖更改（即有一条新的覆盖路线）或更新了覆盖的转发信息时，便会通知该覆盖路线。未通过这项覆盖检查的adj-fib不会安装到fib_table_t的转发表中，仅存在于非转发表中。
+
+  不支持重叠子网，因此没有adj-fib具有多个路径。在接口更改RF之前，控制平面会删除为接口配置的前缀。
+
+  因此，如下配置是可以被接受的: 
+
+  > $ set interface address 192.168.1.1/32 GigabitEthernet0/8/0
+  > $ ip arp 192.168.1.2 GigabitEthernet0/8/0 dead.dead.dead
+  > $ set interface ip table GigabitEthernet0/8/0 2
+
+  它不会导致期望的行为，它会将adj-fib和连接的邻接关系移至表2。
+
   - 递归路由(Recursive Routes)
+
+  ![递归路由类图](https://github.com/penybai/vpp-docs/blob/master/images/recursive-route-class-diagram.png)
+  图4: 递归路由类图
+
+  ![递归路由对象图](https://github.com/penybai/vpp-docs/blob/master/images/recursive-routes-object-diagram.png)
+  图5: 递归路由对象图
+
   - 输出标签(Output Labels)
 * 附加导出(Attached Export)
 * 图遍历(Graph Walks)
