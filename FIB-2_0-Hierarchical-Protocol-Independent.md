@@ -39,8 +39,16 @@ FIB数据模型包括两个部分：控制平面(CP)和数据平面(DP)。控制
   这样就可以在路由之间共享邻接关系，将邻接关系存储在一个数据库中，该数据库的关键字为{interface，next-hop，link-type}。
 
 * 路由(Routes)
+  控制平面将通过路径列表在表中为前缀安装路由。FIB的主要功能是解决该路由。解决一条路线就是构造一个对象图，该图完全描述路线的所有元素。在图3中，解决了从fib_entry_t到ip_adjacency_t的图的完整过程。
+
+  在某些路由模型中，VRF将由一组用于IPv4和IPv6以及单播和多播的表组成。在VPP中，没有这样的分组。每个表彼此不同。表格由其数字ID标识。每个地址系列的ID范围都是独立的。
+
+  一个表由两个路由数据库组成，转发和非转发。转发数据库包含路由，数据包将针对这些路由执行数据平面中的最长前缀匹配(LPM)。非转发数据库包含已使用VPP编程的所有路由，其中​​某些路由可能由于无法阻止其插入转发数据库的原因而无法解析(请参阅：[邻接源FIB条目]())。
+
+  路由数据被分解为三部分：条目(entry)、路径列表(path-list)和路径(paths)：
+
   - FIB源(FIB sources)
-  - 邻接源的FIB条目(Adjacency source FIB entries)
+  - 邻接源FIB条目(Adjacency source FIB entries)
   - 递归路由(Recursive Routes)
   - 输出标签(Output Labels)
 * 连接导出(Attached Export)
