@@ -31,9 +31,9 @@
 * [编译系统]()
 * [事件日志(Event-Logger)]()
 * [G2图形化事件浏览器]()
-* [FIB2.0分层协议](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md)
-  - [预备知识](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md#预备知识prerequisites)
-  - [数据模型](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md#数据模型the-data-model)
+* [FIB2.0分层协议](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md)--Completed
+  - [预备知识](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md#预备知识prerequisites)--Completed
+  - [数据模型](https://github.com/penybai/vpp-docs/blob/master/FIB-2_0-Hierarchical-Protocol-Independent.md#数据模型the-data-model)--Completed
   - [隧道]()
   - [MPLS FIB(转发信息表)]()
   - [IP多播FIB]()
@@ -44,6 +44,6 @@
   - [主堆]()
   - [统计堆]()
 * [如何给Wireshark编译一个VPP调度跟踪器]()
-* [未决数据包(Punting Packets)](https://github.com/penybai/vpp-docs/blob/master/Punting-Packets.md)
-* [QUIC主机协议栈](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md)
+* [未决数据包(Punting Packets)](https://github.com/penybai/vpp-docs/blob/master/Punting-Packets.md)--Completed
+* [QUIC主机协议栈](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md)--Completed
 * [MacOS跨平台编译]()
