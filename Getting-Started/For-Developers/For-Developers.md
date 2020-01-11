@@ -12,10 +12,23 @@
 
 详细信息请点击下边的链接：
 * [编译VPP]()
+  - [设置代理]()
+  - [获取VPP源码]()
+  - [编译VPP依赖]()
+  - [编译VPP(Debug版本)]()
+  - [编译VPP(Release版本)]()
+  - [编译必要的软件包]()
 * [运行VPP]()
+  - [不通过GDB运行]()
+  - [通过GDB运行]()
 * [GDB例子]()
 * [新增一个插件]()
-* [获得一个补丁检查]()
+  - [概述]()
+  - [生成的文件详情]()
+* [得到一个补丁审查]()
+  - [设置]()
+  - [通过ssh克隆]()
+  - [git审查]()
 * [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)--Completed
   - [VPP层-实施分类法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md#VPP层-实施分类法)--Completed
 * [VPPINFRA(基础设施)]()
@@ -31,10 +44,17 @@
 * [插件]()
 * [VNET(VPP网络协议栈)]()
 * [特性弧]()
+  - [向已经存在的特性弧上添加特性]()
+  - [创建一个特性弧]()
+  - [启用/禁用特性]()
+  - [show相关的命令]()
+  - [特性弧表]()
 * [Buffer元数据]()
 * [Buffer元数据扩展]()
 * [多体系结构支持]()
 * [bihash(Bounded-index Extensible Hashing)]()
+  - [算法的讨论]()
+  - [bihash手册]()
 * [VPP API模块](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md)--Completed
   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#概述)--Completed
   - [通用代码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#通用代码)--Completed
@@ -53,6 +73,9 @@
   - [发送二进制API消息到VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#发送二进制API消息到VPP)--Completed
   - [从VPP接收二进制API消息](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#从VPP接收二进制API消息)--Completed
 * [编译系统]()
+  - [顶层Makefile简介]()
+  - [cmake和ninja简介]()
+  - [build-root/Makefile简介]()
 * [事件日志(Event-Logger)]()
 * [G2图形化事件浏览器]()
 * [FIB2.0分层协议](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/FIB-2_0-Hierarchical-Protocol-Independent/FIB-2_0-Hierarchical-Protocol-Independent.md)--Completed
