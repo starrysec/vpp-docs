@@ -257,8 +257,104 @@ VPP以很高的速度检查自己的二进制API输入队列。VPP根据数据�
 
 ### 发送二进制API消息到VPP
 
+练习的重点是将二进制API消息发送到VPP，并接收来自VPP的答复。许多VPP二进制API包含一个客户端请求消息和一个简单的状态回复。例如，要设置接口的管理状态：
 
+```
+vl_api_sw_interface_set_flags_t *mp;
+mp = vl_msg_api_alloc (sizeof (*mp));
+memset (mp, 0, sizeof (*mp));
+mp->_vl_msg_id = clib_host_to_net_u16 (VL_API_SW_INTERFACE_SET_FLAGS);
+mp->client_index = api_main.my_client_index;
+mp->sw_if_index = clib_host_to_net_u32 (<interface-sw-if-index>);
+vl_msg_api_send (api_main.shmem_hdr->vl_input_queue, (u8 *)mp);
+```
+
+关键点：
+
+* 使用vl_msg_api_alloc分配消息缓冲区
+* 分配的消息缓冲区未初始化，必须假定包含垃圾。
+* 不要忘记设置_vl_msg_id字段！
+* 在撰写本文时，二进制API消息ID和数据以网络字节顺序发送
+* 客户端库全局数据结构api_main跟踪用于与VPP通信的足够的指针和句柄
 
 ### 从VPP接收二进制API消息
 
+除非您进行了其他安排（请参见vl_client_connect_to_vlib_no_rx_pthread），否则将在单独的rx pthread上接收消息。与客户端应用程序主线程同步是应用程序的责任！
+
+如下设置消息处理程序：
+```
+#define vl_typedefs         /* define message structures */
+#include <vpp/api/vpe_all_api_h.h>
+#undef vl_typedefs
+/* declare message handlers for each api */
+#define vl_endianfun                /* define message structures */
+#include <vpp/api/vpe_all_api_h.h>
+#undef vl_endianfun
+/* instantiate all the print functions we know about */
+#define vl_print(handle, ...)
+#define vl_printfun
+#include <vpp/api/vpe_all_api_h.h>
+#undef vl_printfun
+/* Define a list of all message that the client handles */
+#define foreach_vpe_api_reply_msg                            \
+   _(SW_INTERFACE_SET_FLAGS_REPLY, sw_interface_set_flags_reply)
+   static clib_error_t *
+   my_api_hookup (vlib_main_t * vm)
+   {
+     api_main_t *am = &api_main;
+   #define _(N,n)                                                  \
+       vl_msg_api_set_handlers(VL_API_##N, #n,                     \
+                              vl_api_##n##_t_handler,              \
+                              vl_noop_handler,                     \
+                              vl_api_##n##_t_endian,               \
+                              vl_api_##n##_t_print,                \
+                              sizeof(vl_api_##n##_t), 1);
+     foreach_vpe_api_msg;
+   #undef _
+     return 0;
+    }
+```
+
+用于建立消息处理程序的关键API是vl_msg_api_set_handlers，它在api_main_t结构中的多个并行向量中设置值。撰写本文时：并非所有矢量元素值都可以通过API设置。您会看到零星的API消息注册，然后对形式进行一些细微调整：
+
+```
+/*
+ * Thread-safe API messages
+ */
+am->is_mp_safe[VL_API_IP_ADD_DEL_ROUTE] = 1;
+am->is_mp_safe[VL_API_GET_NODE_GRAPH] = 1;
+```
+
 #### 插件中API消息编号
+
+插件中的二进制API消息编号依赖于vpp发行消息ID块供插件使用：
+
+```
+static clib_error_t *
+my_init (vlib_main_t * vm)
+{
+  my_main_t *mm = &my_main;
+
+  name = format (0, "myplugin_%08x%c", api_version, 0);
+
+  /* Ask for a correctly-sized block of API message decode slots */
+  mm->msg_id_base = vl_msg_api_get_msg_ids
+    ((char *) name, VL_MSG_FIRST_AVAILABLE);
+
+  }
+```
+
+控制平面代码使用vl_client_get_first_plugin_msg_id() api恢复消息ID块基数：
+
+```
+/* Ask the vpp engine for the first assigned message-id */
+name = format (0, "myplugin_%08x%c", api_version, 0);
+sm->msg_id_base = vl_client_get_first_plugin_msg_id ((char *) name);
+```
+
+在注册消息处理程序或发送消息时，忘记添加msg_id_base是一个相当常见的错误。使用…/src/vlibapi/api_helper_macros.h中的宏可以自动执行该过程，但请记住在＃包括文件之前#define REPLY_MSG_ID_BASE：
+
+```
+#define REPLY_MSG_ID_BASE mm->msg_id_base
+#include <vlibapi/api_helper_macros.h>
+```
