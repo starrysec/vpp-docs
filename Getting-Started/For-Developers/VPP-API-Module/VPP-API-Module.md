@@ -85,7 +85,7 @@ vapi_show_version(message，callback，callback_context)
 4. 使用wait_for_response()或dispatch()等待响应。
 5. 使用get_response_state()获取状态，并使用get_response()读取响应。
 
-**事件**
+**Events**
 
 ***创建连接并执行适当的请求以订阅事件（例如，Want_stats）***
 

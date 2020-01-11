@@ -43,7 +43,15 @@
   - [C用法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C用法)--Completed
   - [C++高级API](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C++高级API)--Completed
   - [C++用法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C++用法)--Completed
-* [二进制API支持]()
+* [二进制API支持](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md)--Completed
+  - [消息分配](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#消息分配)--Completed
+  - [消息跟踪和重放](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#消息跟踪和重放)--Completed
+  - [API跟踪重放警告](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#API跟踪重放警告)--Completed
+  - [API跟踪接口问题](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#API跟踪接口问题)--Completed
+  - [客户端连接详情](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#客户端连接详情)--Completed
+  - [客户端断开连接详情](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#客户端断开连接详情)--Completed
+  - [发送二进制API消息到VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#发送二进制API消息到VPP)--Completed
+  - [从VPP接收二进制API消息](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Binary-API-Support/Binary-API-Support.md#从VPP接收二进制API消息)--Completed
 * [编译系统]()
 * [事件日志(Event-Logger)]()
 * [G2图形化事件浏览器]()
