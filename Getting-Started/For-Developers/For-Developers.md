@@ -27,8 +27,8 @@
   - [生成的文件详情]()
 * [得到一个补丁审查]()
   - [设置]()
-  - [通过ssh克隆]()
-  - [git审查]()
+  - [通过SSH克隆]()
+  - [Git审查]()
 * [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)--Completed
   - [VPP层-实施分类法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md#VPP层-实施分类法)--Completed
 * [VPPINFRA(基础设施)]()
