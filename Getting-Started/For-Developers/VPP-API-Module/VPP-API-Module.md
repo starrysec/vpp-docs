@@ -75,9 +75,21 @@ vapi_show_version(message，callback，callback_context)
 
 ### C++用法
 
-**请求和转储**
+**Requests和dumps**
 
-创建一个Connection类型的对象，并调用connect()以连接到vpp。
+***创建一个Connection类型的对象，并调用connect()以连接到vpp。***
 
 1. 使用typedef（例如Show_version）创建请求或转储类型的对象
-2. 如果需要，使用get_request（）获取和处理基础请求。
+2. 如果需要，使用get_request()获取和处理基础请求。
+3. 发出execute()发送请求。
+4. 使用wait_for_response()或dispatch()等待响应。
+5. 使用get_response_state()获取状态，并使用get_response()读取响应。
+
+**事件**
+
+***创建连接并执行适当的请求以订阅事件（例如，Want_stats）***
+
+1. 使用模板参数为您感兴趣的事件类型创建Event_registration。
+2. 调用dispatch()或wait_for_response()等待事件。事件发生时（如果传递给Event_registration()构造函数），将调用回调。或者，读取结果集。
+
+> 注意: 结果集中存储的事件会占用共享内存中的空间，应定期释放（例如，在处理事件后在回调中释放）。
