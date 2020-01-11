@@ -37,66 +37,61 @@ quic插件提供了[IETF QUIC协议实]()现。它基于[quicly]()库。
 
 这样就可以在整个安装和拆卸阶段或者特定阶段计时来评估协议性能。
 
-内部客户端的源代码位于```src/plugins/hs_apps/sapi/quic_echo.c```中
+外部客户端的源代码位于```src/plugins/hs_apps/sapi/quic_echo.c```中
 
 #### VCL客户端
 主机栈公开了一个简化的API调用，称为VCL（阻止posix之类的调用），该API由支持QUIC，TCP和UDP的示例客户端和服务器实现使用。
 
-这些二进制文件可以在./build-root/build-vpp[_debug]-native/vpp/bin/中找到
+*这些二进制文件可以在```./build-root/build-vpp[_debug]-native/vpp/bin/```中找到
+* 创建VCL配置文件```echo“ vcl { api-socket-name /vpp.sock }” | tee /tmp/vcl.conf]```
+* 对于服务器```VCL_CONFIG = /tmp/vcl.conf; vcl_test_server -p QUIC 1234“```
+* 对于客户端```VCL_CONFIG = /tmp/vcl.conf; vcl_test_client -p QUIC 1.1.1.1 1234”```
 
-创建VCL conf文件echo“ vcl {api-socket-name /vpp.sock}” | tee /tmp/vcl.conf]
+VCL客户端的源代码位于```src/plugins/hs_apps/vcl/vcl_test_client.c```中
 
-对于服务器VCL_CONFIG = / tmp / vcl.conf; vcl_test_server -p QUIC 1234“
+客户端侧的基本用法如下:
 
-对于客户端VCL_CONFIG = / tmp / vcl.conf; vcl_test_client -p QUIC 1.1.1.1 1234”
+> #include <vcl/vppcom.h>
+> int fd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
+> vppcom_session_tls_add_cert（/ *参数* /）;
+> vppcom_session_tls_add_key（/ *参数* /）;
+> vppcom_session_connect（fd，“ quic：//1.1.1.1/1234”）; / *建立快速连接* /
+> int sfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
+> vppcom_session_stream_connect（sfd，fd）; / *在连接上打开一个quic流* /
+> vppcom_session_write（sfd，buf，n）;
 
-内部客户端的源代码位于src / plugins / hs_apps / vcl / vcl_test_client.c中
+服务器端侧
 
-基本用法是以下客户端
+> #include <vcl/vppcom.h>
+> int lfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
+> vppcom_session_tls_add_cert（/ *参数* /）;
+> vppcom_session_tls_add_key（/ *参数* /）;
+> vppcom_session_bind（fd，“ quic：//1.1.1.1/1234”）;
+> vppcom_session_listen（fd）;
+> int fd = vppcom_session_accept（lfd）; / *接受快速连接* /
+> vppcom_session_is_connectable_listener（fd）; /* 是真的 */
+> int sfd = vppcom_session_accept（fd）; / *接受快速流* /
+> vppcom_session_is_connectable_listener（sfd）; / *为假* /
+> vppcom_session_read（sfd，buf，n）;
 
-#include <vcl / vppcom.h>
-int fd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
-vppcom_session_tls_add_cert（/ *参数* /）;
-vppcom_session_tls_add_key（/ *参数* /）;
-vppcom_session_connect（fd，“ quic：//1.1.1.1/1234”）; / *建立快速连接* /
-int sfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
-vppcom_session_stream_connect（sfd，fd）; / *在连接上打开一个quic流* /
-vppcom_session_write（sfd，buf，n）;
-服务器端
-
-#include <vcl / vppcom.h>
-int lfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
-vppcom_session_tls_add_cert（/ *参数* /）;
-vppcom_session_tls_add_key（/ *参数* /）;
-vppcom_session_bind（fd，“ quic：//1.1.1.1/1234”）;
-vppcom_session_listen（fd）;
-int fd = vppcom_session_accept（lfd）; / *接受快速连接* /
-vppcom_session_is_connectable_listener（fd）; /* 是真的 */
-int sfd = vppcom_session_accept（fd）; / *接受快速流* /
-vppcom_session_is_connectable_listener（sfd）; / *为假* /
-vppcom_session_read（sfd，buf，n）;
-### 内部力学
-QUIC构造如下：
-
-QUIC连接和流都是常规的主机堆栈会话，通过具有其64位句柄的API公开。
-
-可以使用TRANSPORT_PROTO_QUIC进行常规的connect和close调用来创建和销毁QUIC连接。
-
-可以通过再次调用connect并传递新流应属于的连接的句柄来在连接中打开流。
-
-可以通过常规关闭调用来关闭流。
-
-可以从与QUIC连接相对应的会话中接受对等方打开的流。
-
-通过在流会话中使用常规的send和recv调用可以交换数据。
+### 内部机制
+QUIC结构如下：
+* QUIC连接和流都是常规的主机堆栈会话，通过具有其64位句柄的API公开。
+* 可以使用TRANSPORT_PROTO_QUIC进行常规的connect和close调用来创建和销毁QUIC连接。
+* 可以通过再次调用connect并传递新流应属于的连接的句柄来在连接中打开流。
+* 可以通过常规关闭调用来关闭流。
+* 可以从与QUIC连接相对应的会话中接受对等方打开的流。
+* 通过在流会话中使用常规的send和recv调用可以交换数据。
 
 #### 数据结构
-Quic依赖于主机堆栈构造，即应用程序，会话，transport_connections和app_listeners。当使用quic协议侦听端口时，外部应用程序：
+Quic依赖于主机堆栈结构，即applications，sessions，transport_connections和app_listeners。当使用quic协议侦听端口时，外部应用程序：
 
-附加到vpp并注册应用程序
+* 附加到vpp并注册一个```application```
+* 它创建一个```app_listener```和一个```quic_listen_session```。
+* ```quic_listen_session```依赖于```transport_connection（lctx）```访问```udp_listen_session```来接收数据包。
+* 根据连接请求，我们创建相同的数据结构（```quic_session，qctx，udp_session```），并将句柄传递给accept回调中的```quic_session```，以确认已建立quic连接。连接两端的对等方的所有其他UDP数据报将通过```udp_session```交换。
+* 接收到Stream打开请求后，我们创建```stream_session```及其传输```sctx```，并将将```stream_session```的句柄传递回应用程序。 这里没有任何UDP数据结构，因为所有数据报均已绑定到连接。
 
-它创建一个app_listener和quic_listen_session。
+这些结构链接成如下：
 
-quic_listen_session依赖于transport_connection（lctx）访问将接收数据包的基础udp_listen_session。
-
-根据连接请求，我们创建相同的数据结构（quic_session，qctx，udp_session）并将句柄传递给quic_sess
+![](https://github.com/penybai/vpp-docs/blob/master/images/quic_plugin_datastructures.png)
