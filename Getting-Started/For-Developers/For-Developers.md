@@ -16,7 +16,7 @@
 * [GDB例子]()
 * [新增一个插件]()
 * [获得一个补丁检查]()
-* [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture.md)
+* [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)
 * [VPPINFRA(基础设施)]()
 * [VLIB(矢量处理库)]()
 * [插件]()
