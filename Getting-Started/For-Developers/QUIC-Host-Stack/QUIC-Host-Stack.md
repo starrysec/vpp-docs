@@ -50,18 +50,19 @@ quic插件提供了[IETF QUIC协议实]()现。它基于[quicly]()库。
 VCL客户端的源代码位于```src/plugins/hs_apps/vcl/vcl_test_client.c```中
 
 客户端侧的基本用法如下:
-
-> #include <vcl/vppcom.h>
-> int fd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
-> vppcom_session_tls_add_cert（/ *参数* /）;
-> vppcom_session_tls_add_key（/ *参数* /）;
-> vppcom_session_connect（fd，“ quic：//1.1.1.1/1234”）; / *建立快速连接* /
-> int sfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
-> vppcom_session_stream_connect（sfd，fd）; / *在连接上打开一个quic流* /
-> vppcom_session_write（sfd，buf，n）;
+```
+#include <vcl/vppcom.h>
+int fd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
+vppcom_session_tls_add_cert（/ *参数* /）;
+vppcom_session_tls_add_key（/ *参数* /）;
+vppcom_session_connect（fd，“ quic：//1.1.1.1/1234”）; / *建立快速连接* /
+int sfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
+vppcom_session_stream_connect（sfd，fd）; / *在连接上打开一个quic流* /
+vppcom_session_write（sfd，buf，n）;
+```
 
 服务器端侧
-
+```
 > #include <vcl/vppcom.h>
 > int lfd = vppcom_session_create（VPPCOM_PROTO_QUIC）;
 > vppcom_session_tls_add_cert（/ *参数* /）;
@@ -73,6 +74,7 @@ VCL客户端的源代码位于```src/plugins/hs_apps/vcl/vcl_test_client.c```中
 > int sfd = vppcom_session_accept（fd）; / *接受快速流* /
 > vppcom_session_is_connectable_listener（sfd）; / *为假* /
 > vppcom_session_read（sfd，buf，n）;
+```
 
 ### 内部机制
 QUIC结构如下：
