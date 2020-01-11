@@ -19,6 +19,14 @@
 * [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)--Completed
   - [VPP层-实施分类法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md#VPP层-实施分类法)--Completed
 * [VPPINFRA(基础设施)]()
+  - [Vectors]()
+  - [Bitmaps]()
+  - [Pools]()
+  - [Hashes]()
+  - [格式化输出(Format)]()
+  - [格式化输入(Unformat)]()
+  - [Vppinfra错误和警告]()
+  - [序列化(Serialization)]()
 * [VLIB(矢量处理库)]()
 * [插件]()
 * [VNET(VPP网络协议栈)]()
@@ -27,7 +35,14 @@
 * [Buffer元数据扩展]()
 * [多体系结构支持]()
 * [bihash(Bounded-index Extensible Hashing)]()
-* [VPP API模块]()
+* [VPP API模块](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md)--Completed
+  - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#概述)--Completed
+  - [通用代码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#通用代码)--Completed
+  - [生成的代码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#生成的代码)--Completed
+  - [代码生成器](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#代码生成器)--Completed
+  - [C用法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C用法)--Completed
+  - [C++高级API](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C++高级API)--Completed
+  - [C++用法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPP-API-Module/VPP-API-Module.md#C++用法)--Completed
 * [二进制API支持]()
 * [编译系统]()
 * [事件日志(Event-Logger)]()
@@ -46,6 +61,9 @@
   - [统计堆]()
 * [如何给Wireshark编译一个VPP调度跟踪器]()
 * [未决数据包(Punting Packets)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets.md)--Completed
+   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets.md#概述)
+   - [未决基础设施](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets.md#未决基础设施)
+   - [未决转到控制平面](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets.md#未决转到控制平面)
 * [QUIC主机协议栈](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md)--Completed
   - [入门](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md#入门)--Completed
   - [内部机制](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md#内部机制)--Completed
