@@ -47,4 +47,6 @@
 * [如何给Wireshark编译一个VPP调度跟踪器]()
 * [未决数据包(Punting Packets)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets.md)--Completed
 * [QUIC主机协议栈](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md)--Completed
+  - [入门](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md#入门)--Completed
+  - [内部机制](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/QUIC-Host-Stack/QUIC-Host-Stack.md#内部机制)--Completed
 * [MacOS跨平台编译]()
