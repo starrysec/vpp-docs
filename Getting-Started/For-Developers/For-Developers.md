@@ -25,10 +25,10 @@
 * [添加一个插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md)--Completed
   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#概述)--Completed
   - [生成的文件的细节](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#生成的文件的细节)--Completed
-* [获得一个补丁审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md)
-  - [设置](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#设置)
-  - [通过SSH克隆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#通过SSH克隆)
-  - [Git审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#Git审核)
+* [获得一个补丁审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed/Getting-a-Patch-Reviewed.md)--Completed
+  - [设置](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed/Getting-a-Patch-Reviewed.md#设置)--Completed
+  - [通过SSH克隆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed/Getting-a-Patch-Reviewed.md#通过SSH克隆)--Completed
+  - [Git审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed/Getting-a-Patch-Reviewed.md#Git审核)--Completed
 * [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)--Completed
   - [VPP层-实施分类法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md#VPP层-实施分类法)--Completed
 * [VPPINFRA(基础设施)]()
