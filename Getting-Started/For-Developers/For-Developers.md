@@ -25,10 +25,10 @@
 * [添加一个插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md)--Completed
   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#概述)--Completed
   - [生成的文件的细节](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#生成的文件的细节)--Completed
-* [得到一个补丁审查]()
-  - [设置]()
-  - [通过SSH克隆]()
-  - [Git审查]()
+* [获得一个补丁审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md)
+  - [设置](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#设置)
+  - [通过SSH克隆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#通过SSH克隆)
+  - [Git审核](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Getting-a-Patch-Reviewed.md#Git审核)
 * [软件架构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md)--Completed
   - [VPP层-实施分类法](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Software-Architecture/Software-Architecture.md#VPP层-实施分类法)--Completed
 * [VPPINFRA(基础设施)]()
