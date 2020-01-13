@@ -24,7 +24,7 @@
 * [GDB例子]()
 * [添加一个插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md)--Completed
   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#概述)--Completed
-  - [生成的文件详情](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#生成的文件详情)--Completed
+  - [生成的文件的细节](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#生成的文件的细节)--Completed
 * [得到一个补丁审查]()
   - [设置]()
   - [通过SSH克隆]()
