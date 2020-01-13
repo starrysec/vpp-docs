@@ -22,9 +22,9 @@
   - [不通过GDB运行]()
   - [通过GDB运行]()
 * [GDB例子]()
-* [新增一个插件]()
-  - [概述]()
-  - [生成的文件详情]()
+* [添加一个插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md)--Completed
+  - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#概述)--Completed
+  - [生成的文件详情](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#生成的文件详情)--Completed
 * [得到一个补丁审查]()
   - [设置]()
   - [通过SSH克隆]()
@@ -41,7 +41,7 @@
   - [Vppinfra错误和警告]()
   - [序列化(Serialization)]()
 * [VLIB(矢量处理库)]()
-* [插件]()
+* [插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Plugins/Plugins.md)--Completed
 * [VNET(VPP网络协议栈)]()
 * [特性弧](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Feature-Arcs/Feature-Arcs.md)--Completed
   - [向已经存在的特性弧上添加特性](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Feature-Arcs/Feature-Arcs.md#向已经存在的特性弧上添加特性)--Completed
