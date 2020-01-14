@@ -85,7 +85,7 @@ Hash table ip6 FIB fwding table
            used 525248 b (0 Mbytes) of 33554432 b (32 Mbytes)
 ```
 
-当我们扩展到128k IPv6表项时:
+当我们扩展到128k IPv6条目时:
 
 ```
 vpp# sh ip6 fib mem
