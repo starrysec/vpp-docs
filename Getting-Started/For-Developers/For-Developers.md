@@ -106,7 +106,12 @@
   - [IPv6堆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/FIB-2_0-Hierarchical-Protocol-Independent/Scale.md#IPv6堆)--Completed
   - [主堆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/FIB-2_0-Hierarchical-Protocol-Independent/Scale.md#主堆)--Completed
   - [统计堆](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/FIB-2_0-Hierarchical-Protocol-Independent/Scale.md#统计堆)--Completed
-* [如何给Wireshark编译一个VPP调度跟踪器]()
+* [如何给Wireshark编译一个VPP调度跟踪器](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md)--Completed
+  - [下载Wireshark源码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md#下载Wireshark源码)--Completed
+  - [安装必备软件包](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md#安装必备软件包)--Completed
+  - [编译Wireshark](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md#编译Wireshark)--Completed
+  - [配置一个pcap调度跟踪](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md#配置一个pcap调度跟踪)--Completed
+  - [在Wireshark中显示](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/How-to-build-a-vpp-dispatch-trace-aware-Wireshark/How-to-build-a-vpp-dispatch-trace-aware-Wireshark.md#在Wireshark中显示)--Completed
 * [Punting数据包(Punting Packets)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets/Punting-Packets.md)--Completed
    - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets/Punting-Packets.md#概述)--Completed
    - [Punt基础设施](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Punting-Packets/Punting-Packets.md#Punt基础设施)--Completed
