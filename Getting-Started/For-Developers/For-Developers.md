@@ -18,9 +18,9 @@
   - [编译VPP(Debug版本)]()
   - [编译VPP(Release版本)]()
   - [编译必要的软件包]()
-* [运行VPP]()
-  - [不通过GDB运行]()
-  - [通过GDB运行]()
+* [运行VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Running-VPP/Running-VPP.md)
+  - [不通过GDB运行](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Running-VPP/Running-VPP.md#不通过GDB运行)
+  - [通过GDB运行](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Running-VPP/Running-VPP.md#通过GDB运行)
 * [GDB例子]()
 * [添加一个插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md)--Completed
   - [概述](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Adding-a-plugin/Adding-a-plugin.md#概述)--Completed
