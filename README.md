@@ -38,7 +38,7 @@ VPP应用场景包括虚拟交换(vSwitchs)、虚拟路由(vRouters)、网关(Ga
   - [VPP作为家庭网关](https://github.com/penybai/vpp-docs/blob/master/Using-VPP-as-a-Home-Gateway.md)
   - [VPP和思科网络插件(Contiv)](https://github.com/penybai/vpp-docs/blob/master/Contiv-VPP.md)
   - [网络模拟器插件](https://github.com/penybai/vpp-docs/blob/master/Network-Simulator-Plugin.md)
-* [故障排除](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting.md)
+* [故障排查](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/Troubleshooting.md)--Completed
   - [如何提交问题](https://github.com/penybai/vpp-docs/blob/master/How-to-Report-an-Issue.md)
   - [CPU负载/使用](https://github.com/penybai/vpp-docs/blob/master/CPU-Load-Usage.md)
 * [参考](https://github.com/penybai/vpp-docs/blob/master/Reference.md)
