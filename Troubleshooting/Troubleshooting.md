@@ -2,12 +2,20 @@
 
 本章介绍FD.io VPP实现的一些用于解决和诊断问题的技术。
 
-* [如何提交问题]()
-  - [提交Bugs]()
-  - []()
-  - []()
-  - []()
-  - []()
+* [如何提交问题](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md)--Completed
+  - [提交Bugs](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#提交Bugs)
+  - [BUG报告中包含的数据](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#BUG报告中包含的数据)
+    - [镜像版本和操作环境](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#镜像版本和操作环境)
+    - [show命令输出](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#show命令输出)
+    - [网络拓扑](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#网络拓扑)
+    - [数据包跟踪器输出](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#数据包跟踪器输出)
+  - [采集事后数据](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#采集事后数据)
+    - [Syslog输出](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#Syslog输出)
+    - [二进制API跟踪](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#二进制API跟踪)
+    - [Core文件](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#Core文件)
+  - [私有镜像的Core文件](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#私有镜像的Core文件)
+    - [动态core文件压缩](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#动态core文件压缩)
+    - [Core文件摘要](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md#Core文件摘要)
 * [CPU负载/使用量](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/CPU-Load-Usage/CPU-Load-Usage.md)--Completed
   - [Linux top/htop](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/CPU-Load-Usage/CPU-Load-Usage.md#Linux-top-htop)--Completed
   - [VPP内存使用量](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/CPU-Load-Usage/CPU-Load-Usage.md#VPP内存使用量)--Completed
