@@ -168,20 +168,201 @@ cli-prompt vpp-2
 ```
 
 ##### cli-history-limit <n>
+
+限制历史命令行数，0表示禁用历史命令行，默认值为50。
+
+```
+cli-history-limit 100
+```
+
 ##### cli-no-banner
+
+禁止显示从stdin和telnet登录后显示的banner。
+
+```
+cli-no-banner
+```
+
 ##### cli-no-pager
+
+禁用输出页。
+
+```
+cli-no-pager
+```
+
 ##### cli-pager-buffer-limit <n>
+
+限制输出页的缓冲区行数，0表示禁用页，默认为100000。
+
+```
+cli-pager-buffer-limit 5000
+```
+
 ##### runtime-dir <dir>
+
+设置运行时目录，这是某些文件（如套接字文件）的默认位置。默认目录是基于启动VPP的用户ID，通常“root”用户，其默认为“/run/vpp/”，其他用户默认为“/run/user/<uid>/vpp/”。
+
+```
+runtime-dir /tmp/vpp
+```
+
 ##### poll-sleep-usec <n>
+
+在主循环轮询之间添加固定睡眠。默认值为0，即不休眠。
+
+```
+poll-sleep-usec 100
+```
+
 ##### pidfile <filename>
 
+在给定的文件名中写入主线程的pid。
+
+```
+pidfile /run/vpp/vpp1.pid
+```
+
 #### api-trace节
+
+尝试了解控制平面试图要求转发平面执行的操作时，跟踪(trace)，转储(dump)和重放(replay)控制平面API跟踪的功能意义巨大。
+
+通常，只需启用API消息跟踪方案即可：
+
+```
+api-trace {
+   api-trace on
+}
+```
+
+##### on | enable
+
+从开始就启用API跟踪捕获，并在应用程序异常终止时安排API跟踪的事后转储。默认情况下，（循环）跟踪缓冲区将配置为捕获256K跟踪。默认的“startup.conf”文件启用了跟踪，除非有很强的理由，否则应保持启用状态。
+
+```
+on
+```
+
+##### nitems <n>
+
+配置循环跟踪缓冲区以包含最近的<n>条目。默认情况下，跟踪缓冲区捕获最后收到的256K API消息。
+
+```
+nitems 524288
+```
+
+##### save-api-table <filename>
+
+转储API消息表到/tmp/<filename>中。
+
+```
+save-api-table apiTrace-07-04.txt
+```
+
 #### api-segment节
 #### socksvr节
 #### cpu节
 #### buffers节
+
+```
+buffers {
+   buffers-per-numa 128000
+   default data-size 2048
+}
+```
+
+##### buffers-per-numa number
+
+增加分配的缓冲区数，只有在具有大量接口和辅助线程的情况下才需要。值是针对每个numa节点的，默认值为16384（如果未特权运行则为8192）。
+
+```
+buffers-per-numa 128000
+```
+
+##### default data-sze number
+
+缓冲数据区域的大小，默认为2048。
+
+```
+default data-size 2048
+```
+
 #### dpdk节
 #### plugins节
+
+配置vpp插件：
+
+```
+plugins {
+   path /ws/vpp/build-root/install-vpp-native/vpp/lib/vpp_plugins
+   plugin dpdk_plugin.so enable
+}
+```
+
+##### path pathname
+
+根据vpp插件存放目录调整插件路径。
+
+```
+path /ws/vpp/build-root/install-vpp-native/vpp/lib/vpp_plugins
+```
+
+##### plugin plugin-name | default enable | disable
+
+默认禁止所有的插件，然后选择启用的插件。
+
+```
+plugin default disable
+plugin dpdk_plugin.so enable
+plugin acl_plugin.so enable
+```
+
+模式启用所有的插件，然后选择禁用的插件。
+
+```
+plugin dpdk_plugin.so disable
+plugin acl_plugin.so disable
+```
+
+#### statseg节
+
+```
+statseg {
+   per-node-counters on
+ }
+```
+
+##### socket-name <filename>
+
+统计段的默认套接字“/run/vpp/stats.sock”。
+
+```
+socket-name /run/vpp/stats.sock
+```
+
+##### size <nnn>[KMG]
+
+统计段的大小，默认32MB。
+
+```
+size 1024M
+```
+
+##### per-node-counters on | off
+
+默认值为none。
+
+```
+per-node-counters on
+```
+
+##### update-interval <f64-seconds>
+
+设置统计段搜集/更新的时间间隔。
+
+```
+update-interval 300
+```
 
 ### 一些高级配置参数
 #### acl-plugin节
