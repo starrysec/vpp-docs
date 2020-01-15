@@ -13,6 +13,6 @@
   - [大页](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Huge-Pages.md)--Completed
   - [VPP配置-CLI和startup.conf](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/VPP-Configuration-CLI-and-startup.conf.md)--Completed
 * [运行VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Running-VPP/Running-VPP.md)--Completed
-  - [vpp用户组](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#vpp用户组)--Completed
-  - [VPP Systemd文件-vpp.service](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#VPP-Systemd文件-vpp.service)--Completed
+  - [vpp用户组](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Running-VPP/Running-VPP.md#vpp用户组)--Completed
+  - [VPP Systemd文件-vpp.service](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Running-VPP/Running-VPP.md#VPP-Systemd文件-vpp.service)--Completed
   
