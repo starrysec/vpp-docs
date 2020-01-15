@@ -354,6 +354,72 @@ socksvr {
 “default”关键字指示vpp以root身份运行时使用/run/vpp/api.sock，否则，则使用/run/user/<uid>/api.sock。
 
 #### cpu节
+
+在VPP中，有一个主线程，用户可以选择创建工作线程。主线程和工作线程可以手动或自动绑定到CPU核上。
+
+```
+cpu {
+   main-core 1
+   corelist-workers 2-3,18-19
+}
+```
+
+##### **手动绑定线程到CPU核上**
+
+##### main-core
+
+设置运行主线程的逻辑CPU核，如果未设置主核，则VPP将使用核1（如果有）。
+
+```
+main-core 1
+```
+
+##### corelist-workers
+
+设置工作线程使用的逻辑CPU核。
+
+```
+corelist-workers 2-3,18-19
+```
+
+##### **自动绑定线程到CPU核上**
+
+##### skip-cores number
+
+设置要跳过的CPU核数（1…N-1），跳过的CPU核不用于绑定主线程和工作线程。
+
+主线程自动绑定到第一个可用的CPU核上，工作线程固定在分配给主线程的核心之后的下一个空闲CPU核。
+
+```
+skip-cores 4
+```
+
+##### workers number
+
+指定要创建的工作线程数，并将工作线程绑定到N个连续的CPU核上，同时跳过“skip-cores”个CPU核和主线程的CPU核。
+
+```
+workers 2
+```
+
+##### scheduler-policy other | batch | idle | fifo | rr
+
+设置主线程和工作线程的调度策略和优先级。
+
+调度策略选项包括：其他（SCHED_OTHER），批量（SCHED_BATCH），空闲（SCHED_IDLE），FIFO（SCHED_FIFO），rr（SCHED_RR）。
+
+```
+scheduler-policy fifo
+```
+
+##### schedule-priority number
+
+调度优先级仅用于“实时策略（fifo和rr）”，并且必须在特定策略支持的优先级范围内。
+
+```
+schedule-priority 50
+```
+
 #### buffers节
 
 ```
@@ -380,6 +446,9 @@ default data-size 2048
 ```
 
 #### dpdk节
+
+
+
 #### plugins节
 
 配置vpp插件：
