@@ -260,7 +260,99 @@ save-api-table apiTrace-07-04.txt
 ```
 
 #### api-segment节
+
+这些值用以控制vpp二进制API接口的各个方面。
+
+默认配置如下：
+
+```
+api-segment {
+  gid vpp
+}
+```
+
+##### prefix <path>
+
+将前缀设置为用于共享内存（SHM）段的名称的前缀。默认值为空，这意味着共享内存段直接在SHM目录“/dev/shm”中创建。值得注意的是，在许多系统上，“/dev/shm”是指向文件系统中其他位置的符号链接。Ubuntu将其链接到“/run/shm”。
+
+```
+prefix /run/shm
+```
+
+##### uid <number | name>
+
+用于设置共享内存段所有权的用户ID或名称 默认为启动VPP的用户（可能是root）。
+
+```
+uid root
+```
+
+##### gid <number | name>
+
+用于设置共享内存段所有权的组ID或名称。默认为启动VPP的同一组，可能是root。
+
+```
+gid vpp
+```
+
+**以下参数仅应由熟悉VPP互通原理的人员设置。**
+
+##### baseva <x>
+
+设置SVM全局区域（global region）的基地址。如果未设置，则在AArch64上，代码将尝试确定基地址，所有其他默认值为0x30000000。
+
+```
+baseva 0x20000000
+```
+
+##### global-size <n>G | <n>M | <n>
+
+设置全局内存大小，所有路由器实例之间共享的内存，数据包缓冲区等。如果未设置，则默认为64M。输入值可以GB，MB或字节设置。
+
+```
+global-size 2G
+```
+
+##### global-pvt-heap-size <n>M | size <n>
+
+设置全局VM私有堆的大小。如果未设置，则默认为128k。输入值可以以MB或字节为单位设置。
+
+```
+global-pvt-heap-size size 262144
+```
+
+##### api-pvt-heap-size <n>M | size <n>
+
+设置api私有堆的大小。如果未设置，则默认为128k。输入值可以以MB或字节为单位设置。
+
+```
+api-pvt-heap-size 1M
+```
+
+##### api-size <n>M | <n>G | <n>
+
+设置API区域的大小。如果未设置，则默认为16M。输入值可以GB，MB或字节设置。
+
+```
+api-size 64M
+```
+
 #### socksvr节
+
+启用处理二进制API消息的Unix域套接字。参见…/vlibmemory/socket_api.c。如果未设置此参数，则vpp不会通过套接字处理二进制API消息。
+
+```
+socksvr {
+   # Explicitly name a socket file
+   socket-name /run/vpp/api.sock
+   or
+   # Use defaults as described below
+   default
+}
+```
+
+“default”关键字指示vpp以root身份运行时使用/run/vpp/api.sock，否则，则使用/run/user/<uid>/api.sock。
+
 #### cpu节
 #### buffers节
 
