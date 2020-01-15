@@ -9,10 +9,10 @@
 * 说明如何手动配置，然后运行VPP
 * 介绍如何安装，然后使用配置程序配置VPP
 
-* [配置VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md)
-  - [大页](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#大页)
-  - [VPP配置-CLI和startup.conf](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#VPP配置-CLI和startup.conf)
-* [运行VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Running-VPP/Running-VPP.md)
-  - [vpp用户组](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#vpp用户组)
-  - [VPP Systemd文件-vpp.service](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#VPP-Systemd文件-vpp.service)
+* [配置VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md)--Completed
+  - [大页](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Huge-Pages.md)--Completed
+  - [VPP配置-CLI和startup.conf](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/VPP-Configuration-CLI-and-startup.conf.md)--Completed
+* [运行VPP](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Running-VPP/Running-VPP.md)--Completed
+  - [vpp用户组](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#vpp用户组)--Completed
+  - [VPP Systemd文件-vpp.service](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Users/Configuring-VPP/Configuring-VPP.md#VPP-Systemd文件-vpp.service)--Completed
   
