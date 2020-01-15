@@ -447,7 +447,147 @@ default data-size 2048
 
 #### dpdk节
 
+```
+dpdk {
+   dev default {
+      num-rx-desc 512
+      num-tx-desc 512
+   }
 
+   dev 0000:02:00.1 {
+      num-rx-queues 2
+      name eth0
+   }
+}
+```
+
+##### dev <pci-dev> | default { .. }
+
+将特定的PCI设备列入白名单（例如，尝试驱动）。PCI-dev是形式为“DDDD:BB:SS.F”的字符串，其中：
+
+DDDD = 域（Domain）
+BB = 总线编号（Bus Number）
+SS = 插槽号（Slot Number）
+F = 功能（Function）
+
+如果使用了default关键字，则default中的值将应用于所有设备。
+
+此格式与Linux sysfs树（即/sys/bus/pci/devices）中用于PCI设备目录名称的格式相同。
+
+```
+dpdk {
+   dev default {
+      num-rx-desc 512
+      num-tx-desc 512
+   }
+```
+
+##### dev <pci-dev> { .. }
+
+通过指定PCI地址将特定接口列入白名单。通过指定PCI地址将特定接口列入白名单时，还可以指定其他自定义参数。有效选项包括：
+
+```
+dev 0000:02:00.0
+dev 0000:03:00.0
+```
+
+##### blacklist <pci-dev>
+
+通过指定PCI供应商将特定设备类型列入黑名单：设备白名单条目优先。
+
+```
+blacklist 8086:10fb
+```
+
+##### name interface-name
+
+设置接口名称。
+
+```
+dev 0000:02:00.1 {
+   name eth0
+}
+```
+
+##### num-rx-queues <n>
+
+接收队列数。配置后，同时了启用RSS。预设值为1。
+
+```
+dev 0000:02:00.1 {
+   num-tx-queues <n>
+}
+```
+
+##### num-tx-queues <n>
+
+传输队列数。默认值等于工作线程数，如果没有工作线程，则默认为1。
+
+```
+dev 000:02:00.1 {
+   num-tx-queues <n>
+}
+```
+
+##### num-rx-desc <n>
+
+接收环中描述符的数量。增加或减少数量可能会影响性能。默认值为1024。
+
+```
+dev 000:02:00.1 {
+   num-rx-desc <n>
+}
+```
+
+##### vlan-strip-offload on | off
+
+接口的VLAN Strip卸载模式。默认情况下，除了使用ENIC驱动程序的VIC外，所有NIC的VLAN剥离均关闭，ENIC驱动程序默认情况下启用了VLAN剥离。
+
+```
+dev 000:02:00.1 {
+   vlan-strip-offload on|off
+}
+```
+
+##### uio-driver driver-name
+
+更改VPP使用的UIO驱动程序，可选项有：igb_uio，vfio-pci，uio_pci_generic或auto（默认）。
+
+```
+uio-driver vfio-pci
+```
+
+##### no-multi-seg
+
+禁用多段缓冲区，提高性能，但也同时禁用了巨型（Jumbo）MTU的支持。
+
+```
+no-multi-seg
+```
+
+##### socket-mem <n>
+
+更改每个CPU插槽的大页分配，仅在需要大量mbuf时才需要。每个检测到的CPU插槽的默认值为256M。
+
+```
+socket-mem 2048,2048
+```
+
+##### no-tx-checksum-offload
+
+禁用UDP/TCP TX校验和卸载。通常需要使用更快的矢量PMD（和no-multi-seg配合）。
+
+```
+no-tx-checksum-offload
+```
+
+##### enable-tcp-udp-checksum
+
+启用UDP/TCP TX校验和卸载，这是“no-tx-checksum-offload”的反向选项。
+
+```
+enable-tcp-udp-checksum
+```
 
 #### plugins节
 
