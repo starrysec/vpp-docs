@@ -41,7 +41,11 @@ VPP应用场景包括虚拟交换(vSwitchs)、虚拟路由(vRouters)、网关(Ga
 * [故障排查](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/Troubleshooting.md)--Completed
   - [如何提交问题](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/How-to-Report-an-Issue/How-to-Report-an-Issue.md)--Completed
   - [CPU负载/使用率](https://github.com/penybai/vpp-docs/blob/master/Troubleshooting/CPU-Load-Usage/CPU-Load-Usage.md)--Completed
-* [参考](https://github.com/penybai/vpp-docs/blob/master/Reference.md)
+* [参考](https://github.com/penybai/vpp-docs/blob/master/Reference/Reference.md)--Completed
+  - [有用的调试CLI](https://github.com/penybai/vpp-docs/blob/master/Reference/Useful-Debug-CLI/Useful-Debug-CLI.md)--Completed
+  - [VM与Vagrant](https://github.com/penybai/vpp-docs/blob/master/Reference/VM's-with-Vagrant/VM's-with-Vagrant.md)--Completed
+  - [阅读文档](https://github.com/penybai/vpp-docs/blob/master/Reference/Read-The-Docs/Read-The-Docs.md)--Completed
+  - [Github仓库](https://github.com/penybai/vpp-docs/blob/master/Reference/Github-Repository/Github-Repository.md)--Completed
 * [相关项目](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md)--Completed
   - [CSIT](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md#CSIT)--Completed
   - [TRex](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md#TRex)--Completed
@@ -65,4 +69,4 @@ VPP应用场景包括虚拟交换(vSwitchs)、虚拟路由(vRouters)、网关(Ga
   - [Pma Tools](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md#Pma-Tools)--Completed
   - [DMM](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md#DMM)--Completed
   - [HICN](https://github.com/penybai/vpp-docs/blob/master/Related-Projects/Related-Projects.md#HICN)--Completed
-* [关于](https://github.com/penybai/vpp-docs/blob/master/About/About.md)
+* [关于](https://github.com/penybai/vpp-docs/blob/master/About/About.md)--Completed
