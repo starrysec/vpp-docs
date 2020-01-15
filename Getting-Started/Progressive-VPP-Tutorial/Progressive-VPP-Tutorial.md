@@ -10,5 +10,5 @@
 * [创建一个接口]()
 * [使用trace命令]()
 * [连接两个VPP实例]()
-* [路由]()
-* [交换]()
+* [路由](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/Progressive-VPP-Tutorial/Routing/Routing.md)
+* [交换](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/Progressive-VPP-Tutorial/Switching/Switching.md)
