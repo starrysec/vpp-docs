@@ -246,6 +246,23 @@ $ sudo vppctl acl_interface_set_acl_list sw_if_index 1 input 0
 
 ### FD.io VPP COP
 ### FD.io VPP Flow
+FD.io VPP Flow增加了FD.io VPP支持流匹配并采取相关措施的能力，此信息被用于编程硬件加速（如果网卡上有可用的硬件加速），例如，英特尔®以太网控制器X710/XXV710/XL710上的英特尔®以太网Flow Director技术。
+
+#### 支持
+##### 动作
+* 计数（Count）：现在不做这件事，假设它计算匹配的次数。
+* 标记（Mark）：将匹配的流与任意数据（例如vxlan隧道）相关联，以在重定向图节点中进行查找。
+* 缓冲区高级（Buffer Advance）：可用于高级封装的以太网或ip标头。
+* 重定向到节点（Redirect to node）：当配置来自流xyz的数据包时，重定向到指定的下一个节点。
+* 重定向到队列（Redirect to queue）：当匹配来自流xyz的数据包时，重定向到rx队列n。
+* 丢弃（Drop）：当匹配来自流xyz的数据包时，丢弃该数据包（下一个节点是错误丢弃（error drop））。
+
+#### 设计说明
+#### 操作数据
+#### 性能
+#### 配置
+* [Flow API]()
+
 ### FD.io VPP Classifiers
 
 FD.io VPP中最灵活的ACL形式，使用户能够匹配数据包头的前80个字节中的任何位置。
