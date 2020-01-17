@@ -247,3 +247,19 @@ $ sudo vppctl acl_interface_set_acl_list sw_if_index 1 input 0
 ### FD.io VPP COP
 ### FD.io VPP Flow
 ### FD.io VPP Classifiers
+
+FD.io VPP中最灵活的ACL形式，使用户能够匹配数据包头的前80个字节中的任何位置。
+
+#### 配置
+匹配一个IPv6...
+```
+$ sudo vppctl classify table mask l3 ip6 dst buckets 64
+$ sudo vppctl classify session hit-next 0 table-index 0 match l3 ip6 dst 2001:db8:1::2 opaque-index 42
+$ sudo vppctl set interface l2 input classify intfc host-s0_s1 ip6-table 0
+```
+
+#### 链接
+* [分类器概述（Overview of classifiers）]()
+* [FD.io分类器概述（FD.io Classifiers Overview）]()
+* [FD.io分类器CLI（FD.io Classifiers CLI）]()
+* [Andrew Yourt的示例代码]()
