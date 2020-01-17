@@ -245,6 +245,74 @@ $ sudo vppctl acl_interface_set_acl_list sw_if_index 1 input 0
 * [Andrew Yuort关于ACL的博客]()
 
 ### FD.io VPP COP
+使用FD.io VPP FIB的IPv4/IPv6白名单，并支持多个嵌套的白名单。
+
+#### 设计说明
+* 在FIB 2.0实现中，COP图节点（输入和白名单）重用了FD.io VPP。从本质上说，在FIB中成功查找表明该数据包已被列入白名单并可以转发。
+* cop-input：确定帧是IPv4还是IPv6，并转发到ipN-copwhitelist图节点。
+* ipN-copwhitelist：使用ip4_fib_ [mtrie，lookup]函数来确认数据包的ip与白名单fib中的路由匹配。
+* 匹配：如果匹配，则将其发送到下一个白名单或ip层。
+* 不匹配：如果不匹配，则将其发送到错误丢弃。
+
+#### 操作数据
+注意：两次通过ip4-lookup和ip4-rewrite。
+```
+DUT1:
+ Thread 0 vpp_main (lcore 1)
+ Time 3.9, average vectors/node 0.00, last 128 main loops 0.00 per node 0.00
+   vector rates in 0.0000e0, out 0.0000e0, drop 0.0000e0, punt 0.0000e0
+              Name                 State         Calls          Vectors        Suspends         Clocks       Vectors/Call
+ api-rx-from-ring                 active                  0               0              53          4.20e4            0.00
+ dpdk-process                    any wait                 0               0               1          1.75e4            0.00
+ fib-walk                        any wait                 0               0               2          1.59e3            0.00
+ ip4-reassembly-expire-walk      any wait                 0               0               1          2.20e3            0.00
+ ip6-icmp-neighbor-discovery-ev  any wait                 0               0               4          1.14e3            0.00
+ ip6-reassembly-expire-walk      any wait                 0               0               1          1.50e3            0.00
+ lisp-retry-service              any wait                 0               0               2          2.19e3            0.00
+ statseg-collector-process       time wait                0               0               1          2.48e3            0.00
+ unix-epoll-input                 polling              2800               0               0          3.15e6            0.00
+ vpe-oam-process                 any wait                 0               0               2          7.00e2            0.00
+
+ Thread 1 vpp_wk_0 (lcore 2)
+ Time 3.9, average vectors/node 220.84, last 128 main loops 20.87 per node 190.86
+   vector rates in 1.0724e7, out 1.0724e7, drop 0.0000e0, punt 0.0000e0
+              Name                 State         Calls          Vectors        Suspends         Clocks       Vectors/Call
+ TenGigabitEtherneta/0/0-output   active              94960        20698112               0          1.03e1          217.97
+ TenGigabitEtherneta/0/0-tx       active              94960        20698112               0          3.97e1          217.97
+ TenGigabitEtherneta/0/1-output   active              92238        20698112               0          9.92e0          224.39
+ TenGigabitEtherneta/0/1-tx       active              92238        20698112               0          4.26e1          224.39
+ cop-input                        active              94960        20698112               0          1.98e1          217.97
+ dpdk-input                       polling             95154        41396224               0          4.58e1          435.04
+ ethernet-input                   active              92238        20698112               0          1.59e1          224.39
+ ip4-cop-whitelist                active              94960        20698112               0          3.24e1          217.97
+ ip4-input                        active              94960        20698112               0          3.13e1          217.97
+ ip4-input-no-checksum            active              92238        20698112               0          2.23e1          224.39
+ ip4-lookup                       active             187198        41396224               0          3.08e1          221.14
+ ip4-rewrite                      active             187198        41396224               0          2.47e1          221.14
+ unix-epoll-input                 polling                93               0               0          1.35e3            0.00
+```
+
+#### 性能
+| 测试用例 | MPPS | 时钟周期/每个数据包 |
+| ------ | ------ | ------ |
+| ethip4-ip4base | 18.81 | 132 |
+| ethip4-ip4base-copwhtlistbase | 15.12 | 165 |
+
+![](https://github.com/penybai/vpp-docs/blob/master/images/ip4-acl-features-ndr.png)
+
+#### 配置
+注意：将创建一个新的VRF 1，其中包含白名单，然后将其应用于接口1。
+```
+$ sudo vppctl ip_add_del_route 10.10.10.0/24 via 1.1.1.1  sw_if_index 2 resolve-attempts 10 count 1
+$ sudo vppctl ip_table_add_del table 1
+$ sudo vppctl ip_add_del_route 20.20.20.0/24  vrf 1  resolve-attempts 10 count 1    local
+$ sudo vppctl cop_whitelist_enable_disable sw_if_index 1 ip4 fib-id 1
+$ sudo vppctl cop_interface_enable_disable sw_if_index 1
+```
+
+#### 连接
+* [FIB 2.0: Hierarchical, Protocol Independent.]()
+
 ### FD.io VPP Flow
 FD.io VPP Flow增加了FD.io VPP支持流匹配并采取相关措施的能力，此信息被用于编程硬件加速（如果网卡上有可用的硬件加速），例如，英特尔®以太网控制器X710/XXV710/XL710上的英特尔®以太网Flow Director技术。
 
@@ -258,8 +326,16 @@ FD.io VPP Flow增加了FD.io VPP支持流匹配并采取相关措施的能力，
 * 丢弃（Drop）：当匹配来自流xyz的数据包时，丢弃该数据包（下一个节点是错误丢弃（error drop））。
 
 #### 设计说明
+* 当前，在FD.io VPP中使用的唯一位置是绕过以太网和IP层来加速VXLAN。
+* Flow对通过DPDK编程的那些网络接口使用了DPDK rte_flow API。
+* 重定向到节点：值得记住的是，如果绕过一个图节点，则绕过这个图节点中的所有检查，例如生存时间，crcs等。
+
 #### 操作数据
+VXLan的FD.io CSIT中的数字是不使用FD.io Flow支持。
+
 #### 性能
+VXLan的FD.io CSIT中的数字是不使用FD.io Flow支持。
+
 #### 配置
 * [Flow API]()
 
