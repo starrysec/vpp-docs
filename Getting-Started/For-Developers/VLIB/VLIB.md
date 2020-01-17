@@ -103,12 +103,125 @@ Vlib_main_loop（）调度图节点。基本的矢量处理算法非常简单，
 帧总是在CLIB_CACHE_LINE_BYTES边界上分配。帧具有利用对齐属性的u32索引，因此，帧的最大可行主堆偏移量为CLIB_CACHE_LINE_BYTES * 0xFFFFFFFF：64 * 4 = 256 GB。
 
 ### 调度矢量
+如您所见，向量并不直接与图节点关联。我们以两种方式表示该关联。最简单的是vlib_pending_frame_t：
+
+```
+    /* A frame pending dispatch by main loop. */
+    typedef struct
+    {
+      /* Node and runtime for this frame. */
+      u32 node_runtime_index;
+
+      /* Frame index (in the heap). */
+      u32 frame_index;
+
+      /* Start of next frames for this node. */
+      u32 next_frame_index;
+
+      /* Special value for next_frame_index when there is no next frame. */
+    #define VLIB_PENDING_FRAME_NO_NEXT_FRAME ((u32) ~0)
+    } vlib_pending_frame_t;
+```
+
+处理帧的代码在../src/vlib/main.c:vlib_main_or_worker_loop()。
+```
+      /*
+       * Input nodes may have added work to the pending vector.
+       * Process pending vector until there is nothing left.
+       * All pending vectors will be processed from input -> output.
+       */
+      for (i = 0; i < _vec_len (nm->pending_frames); i++)
+	    cpu_time_now = dispatch_pending_node (vm, i, cpu_time_now);
+      /* Reset pending vector for next iteration. */
+```
+
+待处理的帧node_runtime_index将帧与将处理该帧的节点相关联。
 
 ### 并发症
 
-### 下一帧和下一帧的所有权
+系好安全带。这里的故事和数据结构变得非常复杂...
 
-### 调度未决节点的动作
+在100,000英尺处：vpp使用有向图，而不是有向无环图。数据包多次访问ip[46]-lookup是非常正常的。最坏的情况：一个图节点将数据包入队其自身。
+
+为了解决此问题，如果当前图节点的发生将数据包入队其自身的情况，则图分配器必须强制分配新帧。
+
+无法保证立即处理待处理的帧，这意味着在将vlib_frame_t附加到vlib_pending_frame_t之后，可能会将更多数据包添加到基础vlib_frame_t中。如果填充了（pending_frame，frame）对，则必须小心分配新帧和待处理帧。
+
+### 下一帧和下一帧的所有权
+vlib_next_frame_t是最后一个关键图调度器数据结构：
+
+```
+    typedef struct
+    {
+      /* Frame index. */
+      u32 frame_index;
+
+      /* Node runtime for this next. */
+      u32 node_runtime_index;
+
+      /* Next frame flags. */
+      u32 flags;
+
+      /* Reflects node frame-used flag for this next. */
+    #define VLIB_FRAME_NO_FREE_AFTER_DISPATCH \
+      VLIB_NODE_FLAG_FRAME_NO_FREE_AFTER_DISPATCH
+
+      /* This next frame owns enqueue to node
+         corresponding to node_runtime_index. */
+    #define VLIB_FRAME_OWNER (1 << 15)
+
+      /* Set when frame has been allocated for this next. */
+    #define VLIB_FRAME_IS_ALLOCATED	VLIB_NODE_FLAG_IS_OUTPUT
+
+      /* Set when frame has been added to pending vector. */
+    #define VLIB_FRAME_PENDING VLIB_NODE_FLAG_IS_DROP
+
+      /* Set when frame is to be freed after dispatch. */
+    #define VLIB_FRAME_FREE_AFTER_DISPATCH VLIB_NODE_FLAG_IS_PUNT
+
+      /* Set when frame has traced packets. */
+    #define VLIB_FRAME_TRACE VLIB_NODE_FLAG_TRACE
+
+      /* Number of vectors enqueue to this next since last overflow. */
+      u32 vectors_since_last_overflow;
+    } vlib_next_frame_t;
+```
+
+图节点调度函数调用vlib_get_next_frame（…），将“（u32 *）to_next”设置到vlib_frame_t中与从当前节点到指定的下一个节点的第i个弧（aka next0）相对应的正确位置。
+
+经过一番摸索-宏的两个级别-处理到达vlib_get_next_frame_internal（…）。 Get-next-frame-internal提取与所需图弧相对应的vlib_next_frame_t。
+
+下一个帧数据结构相当于一个以图弧为中心的帧缓存。节点完成向框架中添加元素后，它将获取vlib_pending_frame_t并最终到达图调度程序的运行队列。但是，不能保证不会将更多矢量元素从相同（source_node，next_index）弧或从不同（source_node，next_index）弧添加到基础框架。
+
+保持弧到帧缓存的一致性是必要的。保持一致性的第一步是确保一次只有一个图节点认为它“拥有”目标vlib_frame_t。
+
+返回图节点调度功能。在通常情况下，一定数量的数据包将添加到通过调用vlib_get_next_frame（…）获得的vlib_frame_t中。
+
+在调度函数返回之前，需要为其实际使用的所有图弧调用vlib_put_next_frame（…）。该操作将vlib_pending_frame_t添加到图调度程序的待处理帧向量中。
+
+Vlib_put_next_frame在待处理帧（pending frame）索引和vlib_next_frame_t索引中记录。
+
+### dispatch_pending_node动作
+如上所示，主图调度循环调用带处理节点。
+
+Dispatch_pending_node恢复挂起的帧，以及图节点的运行时/调度功能。此外，它恢复当前与vlib_frame_t关联的next_frame，并将vlib_frame_t与next_frame分离。
+
+代码在…/src/vlib/main.cdispatch_pending_node（…）中，请注意以下节：
+
+```
+  /* Force allocation of new frame while current frame is being
+     dispatched. */
+  restore_frame_index = ~0;
+  if (nf->frame_index == p->frame_index)
+    {
+      nf->frame_index = ~0;
+      nf->flags &= ~VLIB_FRAME_IS_ALLOCATED;
+      if (!(n->flags & VLIB_NODE_FLAG_FRAME_NO_FREE_AFTER_DISPATCH))
+	    restore_frame_index = p->frame_index;
+    }
+```
+
+由于它实现了一些二阶优化，所以值得一试。几乎在事后，它调用了dispatch_node，而后者实际上调用了图节点的调度功能。
 
 ### 进程/线程模型
 

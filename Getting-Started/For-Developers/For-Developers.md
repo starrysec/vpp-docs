@@ -55,13 +55,13 @@
   - [调度矢量](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调度矢量)--Completed
   - [并发症](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#并发症)--Completed
   - [下一帧和下一帧的所有权](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#下一帧和下一帧的所有权)--Completed
-  - [调度未决节点的动作](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调度未决节点的动作)--Completed
-  - [进程/线程模型](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#进程/线程模型)--Completed
-  - [过程事件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#过程事件)--Completed
-  - [缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#缓冲区)--Completed
-  - [共享内存消息API](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#共享内存消息API)--Completed
-  - [调试CLI](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调试CLI)--Completed
-  - [在线程之间传递缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#在线程之间传递缓冲区)--Completed
+  - [dispatch_pending_node动作](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#dispatch_pending_node动作)--Completed
+  - [进程/线程模型](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#进程/线程模型)
+  - [过程事件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#过程事件)
+  - [缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#缓冲区)
+  - [共享内存消息API](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#共享内存消息API)
+  - [调试CLI](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调试CLI)
+  - [在线程之间传递缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#在线程之间传递缓冲区)
 * [插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Plugins/Plugins.md)--Completed
 * [VNET(VPP网络协议栈)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VNET/VNET.md)--Completed
   - [有效的图调度功能编码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VNET/VNET.md#有效的图调度功能编码)--Completed
