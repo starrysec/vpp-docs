@@ -46,7 +46,22 @@
   - [格式化输入(Unformat)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPPINFRA/VPPINFRA.md#格式化输入(Unformat))--Completed
   - [Vppinfra错误和警告](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPPINFRA/VPPINFRA.md#Vppinfra错误和警告)--Completed
   - [序列化(Serialization)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VPPINFRA/VPPINFRA.md#序列化(Serialization))--Completed
-* [VLIB(矢量处理库)]()
+* [VLIB(矢量处理库)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md)--Completed
+  - [初始化函数发现](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#初始化函数发现)--Completed
+  - [节点图初始化](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#节点图初始化)--Completed
+  - [图节点调度器](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#图节点调度器)--Completed
+  - [图调度器内部](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#图调度器内部)--Completed
+  - [矢量数据结构](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#矢量数据结构)--Completed
+  - [调度矢量](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调度矢量)--Completed
+  - [并发症](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#并发症)--Completed
+  - [下一帧和下一帧的所有权](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#下一帧和下一帧的所有权)--Completed
+  - [调度未决节点的动作](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调度未决节点的动作)--Completed
+  - [进程/线程模型](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#进程/线程模型)--Completed
+  - [过程事件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#过程事件)--Completed
+  - [缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#缓冲区)--Completed
+  - [共享内存消息API](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#共享内存消息API)--Completed
+  - [调试CLI](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#调试CLI)--Completed
+  - [在线程之间传递缓冲区](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VLIB/VLIB.md#在线程之间传递缓冲区)--Completed
 * [插件](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/Plugins/Plugins.md)--Completed
 * [VNET(VPP网络协议栈)](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VNET/VNET.md)--Completed
   - [有效的图调度功能编码](https://github.com/penybai/vpp-docs/blob/master/Getting-Started/For-Developers/VNET/VNET.md#有效的图调度功能编码)--Completed
