@@ -79,3 +79,126 @@ typedef enum
 } ip6_lookup_next_t;
 ```
 
+
+IP单播邻接结构体：
+```
+/**
+ * @brief IP unicast adjacency.
+ *  @note cache aligned.
+ *
+ * An adjacency is a representation of a peer on a particular link.
+ */
+typedef struct ip_adjacency_t_
+{
+  CLIB_CACHE_LINE_ALIGN_MARK (cacheline0);
+
+  /**
+   * Linkage into the FIB node graph. First member since this type
+   * has 8 byte alignment requirements.
+   */
+  fib_node_t ia_node;
+
+  /**
+   * Next hop after ip4-lookup.
+   *  This is not accessed in the rewrite nodes.
+   * 1-bytes
+   */
+  ip_lookup_next_t lookup_next_index;
+
+  /**
+   * link/ether-type
+   * 1 bytes
+   */
+  vnet_link_t ia_link;
+
+  /**
+   * The protocol of the neighbor/peer. i.e. the protocol with
+   * which to interpret the 'next-hop' attributes of the sub-types.
+   * 1-btyes
+   */
+  fib_protocol_t ia_nh_proto;
+
+  /**
+   * Flags on the adjacency
+   * 1-bytes
+   */
+  adj_flags_t ia_flags;
+
+  union
+  {
+    /**
+     * IP_LOOKUP_NEXT_ARP/IP_LOOKUP_NEXT_REWRITE
+     *
+     * neighbour adjacency sub-type;
+     */
+    struct
+    {
+      ip46_address_t next_hop;
+    } nbr;
+      /**
+       * IP_LOOKUP_NEXT_MIDCHAIN
+       *
+       * A nbr adj that is also recursive. Think tunnels.
+       * A nbr adj can transition to be of type MDICHAIN
+       * so be sure to leave the two structs with the next_hop
+       * fields aligned.
+       */
+    struct
+    {
+      /**
+       * The recursive next-hop.
+       *  This field MUST be at the same memory location as
+       *   sub_type.nbr.next_hop
+       */
+      ip46_address_t next_hop;
+      /**
+       * The next DPO to use
+       */
+      dpo_id_t next_dpo;
+      /**
+       * A function to perform the post-rewrite fixup
+       */
+      adj_midchain_fixup_t fixup_func;
+      /**
+       * Fixup data passed back to the client in the fixup function
+       */
+      const void *fixup_data;
+      /**
+       * the FIB entry this midchain resolves through. required for recursive
+       * loop detection.
+       */
+      fib_node_index_t fei;
+    } midchain;
+    /**
+     * IP_LOOKUP_NEXT_GLEAN
+     *
+     * Glean the address to ARP for from the packet's destination.
+     * Technically these aren't adjacencies, i.e. they are not a
+     * representation of a peer. One day we might untangle this coupling
+     * and use a new Glean DPO.
+     */
+    struct
+    {
+      ip46_address_t receive_addr;
+    } glean;
+  } sub_type;
+
+  CLIB_CACHE_LINE_ALIGN_MARK (cacheline1);
+
+  /* Rewrite in second/third cache lines */
+  VNET_DECLARE_REWRITE;
+
+  /**
+   * more control plane members that do not fit on the first cacheline
+   */
+  /**
+   * A sorted vector of delegates
+   */
+  struct adj_delegate_t_ *ia_delegates;
+
+  /**
+   * The VLIB node in which this adj is used to forward packets
+   */
+  u32 ia_node_index;
+} ip_adjacency_t;
+```
