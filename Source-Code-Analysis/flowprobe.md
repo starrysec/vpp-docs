@@ -3,6 +3,32 @@
 
 ### 配置
 
+#### plugins/flowprobe/flowprobe.c
+```
+VLIB_CLI_COMMAND (flowprobe_enable_disable_command, static) = {
+    .path = "flowprobe feature add-del",
+    .short_help =
+    "flowprobe feature add-del <interface-name> <l2|ip4|ip6> disable",
+    .function = flowprobe_tx_interface_add_del_feature_command_fn,
+};
+VLIB_CLI_COMMAND (flowprobe_params_command, static) = {
+    .path = "flowprobe params",
+    .short_help =
+    "flowprobe params record <[l2] [l3] [l4]> [active <timer> passive <timer>]",
+    .function = flowprobe_params_command_fn,
+};
+VLIB_CLI_COMMAND (flowprobe_show_table_command, static) = {
+    .path = "show flowprobe table",
+    .short_help = "show flowprobe table",
+    .function = flowprobe_show_table_fn,
+};
+VLIB_CLI_COMMAND (flowprobe_show_stats_command, static) = {
+    .path = "show flowprobe statistics",
+    .short_help = "show flowprobe statistics",
+    .function = flowprobe_show_stats_fn,
+};
+```
+
 ### 处理
 
 #### plugins/flowprobe/node.c
