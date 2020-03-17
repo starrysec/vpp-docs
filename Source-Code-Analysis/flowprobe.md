@@ -512,7 +512,7 @@ flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
   u32 my_cpu_number = vm->thread_index;
   flowprobe_main_t *fm = &flowprobe_main;
   flow_report_main_t *frm = &flow_report_main;
-  /* ipfix数据包 */
+  /* 数据缓存区 */
   vlib_buffer_t *b0;
   bool collect_ip4 = false, collect_ip6 = false;
   flowprobe_variant_t which = e->key.which;
@@ -525,7 +525,7 @@ flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
   if (offset < flowprobe_get_headersize ())
     offset = flowprobe_get_headersize ();
 
-  /* 构造ipfix数据包 */
+  /* 分配数据缓冲区 */
   b0 = flowprobe_get_buffer (vm, which);
   /* No available buffer, what to do... */
   if (b0 == 0)
@@ -565,11 +565,11 @@ flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
   e->octetcount = 0;
   e->last_exported = vlib_time_now (vm);
 
-  /* 为ipfix数据包赋长度 */
+  /* 更新缓冲区长度 */
   b0->current_length = offset;
   /* 记录offset */
   fm->context[which].next_record_offset_per_worker[my_cpu_number] = offset;
-  /* 数据包长度达到了mtu限制，则发送此ipfix数据包 */
+  /* 缓冲区长度+ipfix头部模板长度超过了mtu限制，则发送此数据 */
   /* Time to flush the buffer? */
   if (offset + fm->template_size[flags] > frm->path_mtu)
     flowprobe_export_send (vm, b0, which);
