@@ -584,6 +584,7 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
   flowprobe_main_t *fm = &flowprobe_main;
   flow_report_main_t *frm = &flow_report_main;
   vlib_frame_t *f;
+  /* 包含ip4_header_t, udp_header_t, ipfix_template_packet_t */
   ip4_ipfix_template_packet_t *tp;
   ipfix_set_header_t *s;
   ipfix_message_header_t *h;
@@ -620,6 +621,7 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
   h = (ipfix_message_header_t *) (udp + 1);
   s = (ipfix_set_header_t *) (h + 1);
 
+  /* 填充ifpix数据包的ip头和udp头 */
   ip->ip_version_and_header_length = 0x45;
   ip->ttl = 254;
   ip->protocol = IP_PROTOCOL_UDP;
@@ -653,6 +655,7 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
   ip->checksum = ip4_header_checksum (ip);
   udp->length = clib_host_to_net_u16 (b0->current_length - sizeof (*ip));
 
+  /* 计算udp校验和 */
   if (frm->udp_checksum)
     {
       /* RFC 7011 section 10.3.2. */
@@ -678,10 +681,13 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
       f->n_vectors = 1;
     }
 
+  /* frame发往下一node，进行路由后发出 */
   vlib_put_frame_to_node (vm, ip4_lookup_node.index, f);
+  /* 更新导出数据包计数器 */
   vlib_node_increment_counter (vm, flowprobe_l2_node.index,
 			       FLOWPROBE_ERROR_EXPORTED_PACKETS, 1);
 
+  /* 重置 */
   fm->context[which].frames_per_worker[my_cpu_number] = 0;
   fm->context[which].buffers_per_worker[my_cpu_number] = 0;
   fm->context[which].next_record_offset_per_worker[my_cpu_number] =
