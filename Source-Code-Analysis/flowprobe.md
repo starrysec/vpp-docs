@@ -73,7 +73,8 @@ flowprobe_node_fn (vlib_main_t * vm,
     {
       u32 n_left_to_next;
 
-      /* vlib_get_next_frame，vlib_put_next_frame	几乎每个node中必定出现的一对好基友。vlib_get_next_frame获取传递给下一个node的数据包将驻留的内存结构。vlib_put_next_frame把传递给下一个node的数据包写入特定位置。这样下一个node将正式可以被调度框架调度，并处理传给他的数据包
+      /* vlib_get_next_frame，vlib_put_next_frame几乎每个node中必定出现的一对好基友。 vlib_get_next_frame获取传递给下一个node的数据包将驻留的内存结构。vlib_put_next_frame把传递给下一个node的数据包写入特定位置。
+	  这样下一个node将正式可以被调度框架调度，并处理传给他的数据包
 	  */
       vlib_get_next_frame (vm, node, next_index, to_next, n_left_to_next);
 
@@ -296,84 +297,123 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
 			  timestamp_nsec_t timestamp, u16 length,
 			  flowprobe_variant_t which, flowprobe_trace_t * t)
 {
+  /* flowprobe插件是否使能 */
   if (fm->disabled)
     return;
 
+  /* 获取cpu索引，等于线程索引 */
   u32 my_cpu_number = vm->thread_index;
+  /* 字节数 */
   u16 octets = 0;
 
+  /* 标志，l2, l3, l4, l2_ip4, l2_ip6 */
   flowprobe_record_t flags = fm->context[which].flags;
+  /* 是否收集ip4和ip6信息 */
   bool collect_ip4 = false, collect_ip6 = false;
   ASSERT (b);
+  /* 数据包以太网头 */
   ethernet_header_t *eth = vlib_buffer_get_current (b);
+  /* 数据包以太网类型 */
   u16 ethertype = clib_net_to_host_u16 (eth->type);
-  /* *INDENT-OFF* */
+  /*  flowprobe key，包含
+	  u32 rx_sw_if_index;
+	  u32 tx_sw_if_index;
+	  u8 src_mac[6];
+	  u8 dst_mac[6];
+	  u16 ethertype;
+	  ip46_address_t src_address;
+	  ip46_address_t dst_address;
+	  u8 protocol;
+	  u16 src_port;
+	  u16 dst_port;
+	  flowprobe_variant_t which;
+  字段 */
   flowprobe_key_t k = {};
-  /* *INDENT-ON* */
+
   ip4_header_t *ip4 = 0;
   ip6_header_t *ip6 = 0;
   udp_header_t *udp = 0;
   tcp_header_t *tcp = 0;
   u8 tcp_flags = 0;
 
+  /* 用户配置了收集L3或者L4信息 */
   if (flags & FLOW_RECORD_L3 || flags & FLOW_RECORD_L4)
     {
+	  /* 且数据包含义三层ipv4头，则收集ip4信息 */
       collect_ip4 = which == FLOW_VARIANT_L2_IP4 || which == FLOW_VARIANT_IP4;
+	  /* 且数据包含义三层ipv4头，则收集ip6信息 */
       collect_ip6 = which == FLOW_VARIANT_L2_IP6 || which == FLOW_VARIANT_IP6;
     }
-
+  
+  /* 填充key中的接收和发送接口 */
   k.rx_sw_if_index = vnet_buffer (b)->sw_if_index[VLIB_RX];
   k.tx_sw_if_index = vnet_buffer (b)->sw_if_index[VLIB_TX];
 
+  /* 填充key中which标志，是否包含三层头部数据 */
   k.which = which;
 
+  /* 用户配置了收集L2信息 */
   if (flags & FLOW_RECORD_L2)
     {
       clib_memcpy_fast (k.src_mac, eth->src_address, 6);
       clib_memcpy_fast (k.dst_mac, eth->dst_address, 6);
       k.ethertype = ethertype;
     }
+  /* 需要收集ipv6信息 */
   if (collect_ip6 && ethertype == ETHERNET_TYPE_IP6)
     {
       ip6 = (ip6_header_t *) (eth + 1);
+	  /* 用户配置了收集L3信息 */
       if (flags & FLOW_RECORD_L3)
 	{
+	  /* 收集源ip和目的ip */
 	  k.src_address.as_u64[0] = ip6->src_address.as_u64[0];
 	  k.src_address.as_u64[1] = ip6->src_address.as_u64[1];
 	  k.dst_address.as_u64[0] = ip6->dst_address.as_u64[0];
 	  k.dst_address.as_u64[1] = ip6->dst_address.as_u64[1];
 	}
+	  /* 收集上层协议 */
       k.protocol = ip6->protocol;
+	  /* 获取udp头 */
       if (k.protocol == IP_PROTOCOL_UDP)
 	udp = (udp_header_t *) (ip6 + 1);
+	  /* 获取tcp头 */
       else if (k.protocol == IP_PROTOCOL_TCP)
 	tcp = (tcp_header_t *) (ip6 + 1);
-
+      /* 收集载荷长度 */
       octets = clib_net_to_host_u16 (ip6->payload_length)
 	+ sizeof (ip6_header_t);
     }
+  /* 需要收集ipv4信息 */
   if (collect_ip4 && ethertype == ETHERNET_TYPE_IP4)
     {
       ip4 = (ip4_header_t *) (eth + 1);
+	  /* 用户配置了收集L3信息 */
       if (flags & FLOW_RECORD_L3)
 	{
+	 /* 收集源ip和目的ip */
 	  k.src_address.ip4.as_u32 = ip4->src_address.as_u32;
 	  k.dst_address.ip4.as_u32 = ip4->dst_address.as_u32;
 	}
+	/* 收集上层协议 */
       k.protocol = ip4->protocol;
+	  /* 获取udp头 */
       if ((flags & FLOW_RECORD_L4) && k.protocol == IP_PROTOCOL_UDP)
 	udp = (udp_header_t *) (ip4 + 1);
+	/* 获取tcp头 */
       else if ((flags & FLOW_RECORD_L4) && k.protocol == IP_PROTOCOL_TCP)
 	tcp = (tcp_header_t *) (ip4 + 1);
-
+	  /* 收集载荷长度 */
       octets = clib_net_to_host_u16 (ip4->length);
     }
 
+  /* 有udp头，则收集udp信息 */
   if (udp)
     {
       k.src_port = udp->src_port;
       k.dst_port = udp->dst_port;
     }
+  /* 有tcp头，则收集tcp信息 */
   else if (tcp)
     {
       k.src_port = tcp->src_port;
@@ -381,6 +421,7 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
       tcp_flags = tcp->flags;
     }
 
+  /* 开启trace的话，填充flowprobe的trace信息 */
   if (t)
     {
       t->rx_sw_if_index = k.rx_sw_if_index;
@@ -396,48 +437,70 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
       t->which = k.which;
     }
 
+  /* 初始化flowprobe条目 */
   flowprobe_entry_t *e = 0;
+  /* 获取当前时间 */
   f64 now = vlib_time_now (vm);
+  /* 配置了active_timer，且大于0 */
   if (fm->active_timer > 0)
     {
       u32 poolindex = ~0;
       bool collision = false;
-
+		
+	  /* 查找flowprobe条目 */
       e = flowprobe_lookup (my_cpu_number, &k, &poolindex, &collision);
+	  /* 查找结果为冲突时 */
       if (collision)
-	{
-	  /* Flush data and clean up entry for reuse. */
-	  if (e->packetcount)
-	    flowprobe_export_entry (vm, e);
-	  e->key = k;
-	  e->flow_start = timestamp;
-	  vlib_node_increment_counter (vm, node->node_index,
-				       FLOWPROBE_ERROR_COLLISION, 1);
-	}
+		{
+		  /* 有数据则立即导出 */
+		  /* Flush data and clean up entry for reuse. */
+		  if (e->packetcount)
+			flowprobe_export_entry (vm, e);
+		  /* 重新利用,初始化key和flow起始时间 */
+		  e->key = k;
+		  e->flow_start = timestamp;
+		  /* 更新冲突计数器 */
+		  vlib_node_increment_counter (vm, node->node_index,
+						   FLOWPROBE_ERROR_COLLISION, 1);
+		}
+	  /* 如果flowprobe条目不存在，则新建 */
       if (!e)			/* Create new entry */
-	{
-	  e = flowprobe_create (my_cpu_number, &k, &poolindex);
-	  e->last_exported = now;
-	  e->flow_start = timestamp;
-	}
+		{
+		  /* 创建flowprobe条目 */
+		  e = flowprobe_create (my_cpu_number, &k, &poolindex);
+		  /* 初始化上次导出时间 */
+		  e->last_exported = now;
+		  /* 设置flow起始时间 */
+		  e->flow_start = timestamp;
+		}
     }
+  /* active_timer为0(即未配置)，
   else
     {
+	  /* 则从stateless_entry分配flowprobe条目 */
       e = &fm->stateless_entry[my_cpu_number];
+	  /* 初始化key */
       e->key = k;
     }
 
+  /* flowprobe条目存在，则更新动态数据 */
   if (e)
     {
       /* Updating entry */
+	  /* 更新数据包个数 */
       e->packetcount++;
+	  /* 更新字节数 */
       e->octetcount += octets;
+	  /* 更新最近更新时间 */
       e->last_updated = now;
+	  /* 更新flow终止时间 */
       e->flow_end = timestamp;
+	  /* 更新tcp flags */
       e->prot.tcp.flags |= tcp_flags;
-      if (fm->active_timer == 0
-	  || (now > e->last_exported + fm->active_timer))
-	flowprobe_export_entry (vm, e);
+	  /* 如果active_timer为0(即未配置)，或者到了主动导出时间，则导出flowprobe条目 */
+      if (fm->active_timer == 0 || (now > e->last_exported + fm->active_timer))
+	    /* 导出flowprobe条目 */
+		flowprobe_export_entry (vm, e);
     }
 }
 ```
