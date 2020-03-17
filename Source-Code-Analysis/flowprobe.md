@@ -339,9 +339,9 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
   /* 用户配置了收集L3或者L4信息 */
   if (flags & FLOW_RECORD_L3 || flags & FLOW_RECORD_L4)
     {
-	  /* 且数据包含义三层ipv4头，则收集ip4信息 */
+	  /* 且数据包含有三层ipv4头，则收集ip4信息 */
       collect_ip4 = which == FLOW_VARIANT_L2_IP4 || which == FLOW_VARIANT_IP4;
-	  /* 且数据包含义三层ipv4头，则收集ip6信息 */
+	  /* 且数据包含有三层ipv4头，则收集ip6信息 */
       collect_ip6 = which == FLOW_VARIANT_L2_IP6 || which == FLOW_VARIANT_IP6;
     }
   
@@ -502,5 +502,189 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
 	    /* 导出flowprobe条目 */
 		flowprobe_export_entry (vm, e);
     }
+}
+```
+
+```
+static void
+flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
+{
+  u32 my_cpu_number = vm->thread_index;
+  flowprobe_main_t *fm = &flowprobe_main;
+  flow_report_main_t *frm = &flow_report_main;
+  /* ipfix数据包 */
+  vlib_buffer_t *b0;
+  bool collect_ip4 = false, collect_ip6 = false;
+  flowprobe_variant_t which = e->key.which;
+  flowprobe_record_t flags = fm->context[which].flags;
+  /* 数据包偏移量 */
+  u16 offset =
+    fm->context[which].next_record_offset_per_worker[my_cpu_number];
+
+  /* 获取ipfix头长度（ip头+udp头+ipfix头），并修正offset */
+  if (offset < flowprobe_get_headersize ())
+    offset = flowprobe_get_headersize ();
+
+  /* 构造ipfix数据包 */
+  b0 = flowprobe_get_buffer (vm, which);
+  /* No available buffer, what to do... */
+  if (b0 == 0)
+    return;
+
+  /* 用户配置了收集L3信息 */
+  if (flags & FLOW_RECORD_L3)
+    {
+	  /* 且数据包含有三层ipv4头，则收集ip4信息 */
+      collect_ip4 = which == FLOW_VARIANT_L2_IP4 || which == FLOW_VARIANT_IP4;
+	  /* 且数据包含有三层ipv6头，则收集ip6信息 */
+      collect_ip6 = which == FLOW_VARIANT_L2_IP6 || which == FLOW_VARIANT_IP6;
+    }
+  /* 修正offset */
+  offset += flowprobe_common_add (b0, e, offset);
+
+  /* 用户配置了收集L2信息 */
+  if (flags & FLOW_RECORD_L2)
+    /* 构造L2数据，修正offset */
+    offset += flowprobe_l2_add (b0, e, offset);
+  /* 需要收集ipv4信息 */
+  if (collect_ip6)
+    /* 构造ipv4数据，修正offset */
+    offset += flowprobe_l3_ip6_add (b0, e, offset);
+  /* 需要收集ipv4信息 */
+  if (collect_ip4)
+    /* 构造ipv6数据，修正offset */
+    offset += flowprobe_l3_ip4_add (b0, e, offset);
+  /* 用户配置了收集L4信息 */
+  if (flags & FLOW_RECORD_L4)
+    /* 构造L4数据，修正offset */
+    offset += flowprobe_l4_add (b0, e, offset);
+
+  /* 重置flowprobe条目 */
+  /* Reset per flow-export counters */
+  e->packetcount = 0;
+  e->octetcount = 0;
+  e->last_exported = vlib_time_now (vm);
+
+  /* 为ipfix数据包赋长度 */
+  b0->current_length = offset;
+  /* 记录offset */
+  fm->context[which].next_record_offset_per_worker[my_cpu_number] = offset;
+  /* 数据包长度达到了mtu限制，则发送此ipfix数据包 */
+  /* Time to flush the buffer? */
+  if (offset + fm->template_size[flags] > frm->path_mtu)
+    flowprobe_export_send (vm, b0, which);
+}
+```
+
+```
+static void
+flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
+		       flowprobe_variant_t which)
+{
+  flowprobe_main_t *fm = &flowprobe_main;
+  flow_report_main_t *frm = &flow_report_main;
+  vlib_frame_t *f;
+  ip4_ipfix_template_packet_t *tp;
+  ipfix_set_header_t *s;
+  ipfix_message_header_t *h;
+  ip4_header_t *ip;
+  udp_header_t *udp;
+  flowprobe_record_t flags = fm->context[which].flags;
+  u32 my_cpu_number = vm->thread_index;
+
+  /* Fill in header */
+  flow_report_stream_t *stream;
+
+  /* Nothing to send */
+  if (fm->context[which].next_record_offset_per_worker[my_cpu_number] <=
+      flowprobe_get_headersize ())
+    return;
+
+  u32 i, index = vec_len (frm->streams);
+  for (i = 0; i < index; i++)
+    if (frm->streams[i].domain_id == 1)
+      {
+	index = i;
+	break;
+      }
+  if (i == vec_len (frm->streams))
+    {
+      vec_validate (frm->streams, index);
+      frm->streams[index].domain_id = 1;
+    }
+  stream = &frm->streams[index];
+
+  tp = vlib_buffer_get_current (b0);
+  ip = (ip4_header_t *) & tp->ip4;
+  udp = (udp_header_t *) (ip + 1);
+  h = (ipfix_message_header_t *) (udp + 1);
+  s = (ipfix_set_header_t *) (h + 1);
+
+  ip->ip_version_and_header_length = 0x45;
+  ip->ttl = 254;
+  ip->protocol = IP_PROTOCOL_UDP;
+  ip->flags_and_fragment_offset = 0;
+  ip->src_address.as_u32 = frm->src_address.as_u32;
+  ip->dst_address.as_u32 = frm->ipfix_collector.as_u32;
+  udp->src_port = clib_host_to_net_u16 (UDP_DST_PORT_ipfix);
+  udp->dst_port = clib_host_to_net_u16 (UDP_DST_PORT_ipfix);
+  udp->checksum = 0;
+
+  /* FIXUP: message header export_time */
+  h->export_time = (u32)
+    (((f64) frm->unix_time_0) +
+     (vlib_time_now (frm->vlib_main) - frm->vlib_time_0));
+  h->export_time = clib_host_to_net_u32 (h->export_time);
+  h->domain_id = clib_host_to_net_u32 (stream->domain_id);
+
+  /* FIXUP: message header sequence_number */
+  h->sequence_number = stream->sequence_number++;
+  h->sequence_number = clib_host_to_net_u32 (h->sequence_number);
+
+  s->set_id_length = ipfix_set_id_length (fm->template_reports[flags],
+					  b0->current_length -
+					  (sizeof (*ip) + sizeof (*udp) +
+					   sizeof (*h)));
+  h->version_length = version_length (b0->current_length -
+				      (sizeof (*ip) + sizeof (*udp)));
+
+  ip->length = clib_host_to_net_u16 (b0->current_length);
+
+  ip->checksum = ip4_header_checksum (ip);
+  udp->length = clib_host_to_net_u16 (b0->current_length - sizeof (*ip));
+
+  if (frm->udp_checksum)
+    {
+      /* RFC 7011 section 10.3.2. */
+      udp->checksum = ip4_tcp_udp_compute_checksum (vm, b0, ip);
+      if (udp->checksum == 0)
+	udp->checksum = 0xffff;
+    }
+
+  ASSERT (ip->checksum == ip4_header_checksum (ip));
+
+  /* Find or allocate a frame */
+  f = fm->context[which].frames_per_worker[my_cpu_number];
+  if (PREDICT_FALSE (f == 0))
+    {
+      u32 *to_next;
+      f = vlib_get_frame_to_node (vm, ip4_lookup_node.index);
+      fm->context[which].frames_per_worker[my_cpu_number] = f;
+      u32 bi0 = vlib_get_buffer_index (vm, b0);
+
+      /* Enqueue the buffer */
+      to_next = vlib_frame_vector_args (f);
+      to_next[0] = bi0;
+      f->n_vectors = 1;
+    }
+
+  vlib_put_frame_to_node (vm, ip4_lookup_node.index, f);
+  vlib_node_increment_counter (vm, flowprobe_l2_node.index,
+			       FLOWPROBE_ERROR_EXPORTED_PACKETS, 1);
+
+  fm->context[which].frames_per_worker[my_cpu_number] = 0;
+  fm->context[which].buffers_per_worker[my_cpu_number] = 0;
+  fm->context[which].next_record_offset_per_worker[my_cpu_number] =
+    flowprobe_get_headersize ();
 }
 ```
