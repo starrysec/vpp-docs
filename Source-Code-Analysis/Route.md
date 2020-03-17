@@ -673,6 +673,7 @@ ip4_lookup_inline (vlib_main_t * vm,
       mtrie2 = &ip4_fib_get (vnet_buffer (b[2])->ip.fib_index)->mtrie;
       mtrie3 = &ip4_fib_get (vnet_buffer (b[3])->ip.fib_index)->mtrie;
 
+	  /* 叶子暂未深入了解原理 */
       leaf0 = ip4_fib_mtrie_lookup_step_one (mtrie0, dst_addr0);
       leaf1 = ip4_fib_mtrie_lookup_step_one (mtrie1, dst_addr1);
       leaf2 = ip4_fib_mtrie_lookup_step_one (mtrie2, dst_addr2);
@@ -983,12 +984,15 @@ ip4_lookup_inline (vlib_main_t * vm,
       next += 1;
       n_left -= 1;
     }
-
+	
+  /* 把frame传到下个node处理 */
   vlib_buffer_enqueue_to_next (vm, node, from, nexts, frame->n_vectors);
-
+  
+  /* 当前node开启trace功能的话，将frame转发一份去trace处理 */
   if (node->flags & VLIB_NODE_FLAG_TRACE)
     ip4_forward_next_trace (vm, node, frame, VLIB_TX);
 
+  /* 返回frame中的数据包个数 */
   return frame->n_vectors;
 }
 ```
