@@ -492,35 +492,48 @@ fib_table_entry_special_dpo_add (u32 fib_index,
                                  fib_entry_flag_t flags,
                                  const dpo_id_t *dpo)
 {
+    /* 路由表项id */
     fib_node_index_t fib_entry_index;
+    /* 路由表 */
     fib_table_t *fib_table;
 
+    /* 通过路由表id和协议获取路由表 */
     fib_table = fib_table_get(fib_index, prefix->fp_proto);
+    /* 在路由表中根据前缀查找路由表项 */
     fib_entry_index = fib_table_lookup_exact_match_i(fib_table, prefix);
 
+    /* 路由表项不存在，则添加 */
     if (FIB_NODE_INDEX_INVALID == fib_entry_index)
     {
+    /* 创建路由表项 */
 	fib_entry_index = fib_entry_create_special(fib_index, prefix,
 						   source, flags,
 						   dpo);
 
+    /* 在路由表中插入路由表项 */
 	fib_table_entry_insert(fib_table, prefix, fib_entry_index);
+        /* 路由源类型加一 */
         fib_table_source_count_inc(fib_table, source);
     }
+    /* 路由表项存在 */
     else
     {
         int was_sourced;
 
+        /* 查找是否有source这种路由源 */
         was_sourced = fib_entry_is_sourced(fib_entry_index, source);
+        /* 添加source这样路由源的路由表项到路由表 */
 	fib_entry_special_add(fib_entry_index, source, flags, dpo);
 
+        /* 添加后，再次确认是否有source这种路由源 */
         if (was_sourced != fib_entry_is_sourced(fib_entry_index, source))
         {
+        /* 添加好了，source这种路由源类型加一 */
         fib_table_source_count_inc(fib_table, source);
         }
     }
 
-
+    /* 返回路由表项id */
     return (fib_entry_index);
 }
 ```
