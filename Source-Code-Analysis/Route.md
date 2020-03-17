@@ -234,12 +234,13 @@ unformat_fib_route_path (unformat_input_t * input, va_list * args)
     vnm = vnet_get_main ();
     /* 初始化rpath */
     clib_memset(rpath, 0, sizeof(*rpath));
-    /* 给权重和输入接口赋初值 */
+    /* 给rpath权重和出接口赋初值 */
     rpath->frp_weight = 1;
     rpath->frp_sw_if_index = ~0;
 
     while (unformat_check_input (input) != UNFORMAT_END_OF_INPUT)
     {
+        /* 解析ipv4下一跳地址[next-hop-address]和出接口[next-hop-interface] */
         if (unformat (input, "%U %U",
                       unformat_ip4_address,
                       &rpath->frp_addr.ip4,
@@ -248,6 +249,7 @@ unformat_fib_route_path (unformat_input_t * input, va_list * args)
         {
             rpath->frp_proto = DPO_PROTO_IP4;
         }
+        /* 解析ipv6下一跳地址[next-hop-address]和出接口[next-hop-interface] */ 
         else if (unformat (input, "%U %U",
                            unformat_ip6_address,
                            &rpath->frp_addr.ip6,
@@ -265,12 +267,15 @@ unformat_fib_route_path (unformat_input_t * input, va_list * args)
         {
             rpath->frp_preference = preference;
         }
+        /* 解析递归路由出接口，和下一跳[next-hop-table]*/
         else if (unformat (input, "%U next-hop-table %d",
                            unformat_ip4_address,
                            &rpath->frp_addr.ip4,
                            &rpath->frp_fib_index))
         {
+            /* 出接口 */
             rpath->frp_sw_if_index = ~0;
+            /* dpo协议 */
             rpath->frp_proto = DPO_PROTO_IP4;
 
             /*
