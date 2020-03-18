@@ -105,67 +105,89 @@ arp_input (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
   u32 n_left_from, next_index, *from, *to_next, n_left_to_next;
   ethernet_arp_main_t *am = &ethernet_arp_main;
 
+  /* frame起始地址 */
   from = vlib_frame_vector_args (frame);
+  /* frame中的buffer个数 */
   n_left_from = frame->n_vectors;
+  /* next节点索引 */
   next_index = node->cached_next_index;
 
+  /* 检查节点trace标志 */
   if (node->flags & VLIB_NODE_FLAG_TRACE)
+    /* 收集buffer的trace信息 */
     vlib_trace_frame_buffers_only (vm, node, from, frame->n_vectors,
 				   /* stride */ 1,
 				   sizeof (ethernet_arp_input_trace_t));
 
   while (n_left_from > 0)
     {
+	  /* 获取传递给下一个node的数据包将驻留的内存结构 */
       vlib_get_next_frame (vm, node, next_index, to_next, n_left_to_next);
 
       while (n_left_from > 0 && n_left_to_next > 0)
-	{
-	  const ethernet_arp_header_t *arp0;
-	  arp_input_next_t next0;
-	  vlib_buffer_t *p0;
-	  u32 pi0, error0;
+		{
+		  /* arp头部 */
+		  const ethernet_arp_header_t *arp0;
+		  /* arp-input节点的next节点 */
+		  arp_input_next_t next0;
+		  vlib_buffer_t *p0;
+		  u32 pi0, error0;
 
-	  pi0 = to_next[0] = from[0];
-	  from += 1;
-	  to_next += 1;
-	  n_left_from -= 1;
-	  n_left_to_next -= 1;
+          /* 传递给next节点的buffer数据和当前frame中buffer数据向对应。 */
+		  pi0 = to_next[0] = from[0];
+		  from += 1;
+		  to_next += 1;
+		  n_left_from -= 1;
+		  n_left_to_next -= 1;
 
-	  p0 = vlib_get_buffer (vm, pi0);
-	  arp0 = vlib_buffer_get_current (p0);
+          /* 通过buffer索引后去buffer */
+		  p0 = vlib_get_buffer (vm, pi0);
+		  /* 获取arp头 */
+		  arp0 = vlib_buffer_get_current (p0);
 
-	  error0 = ETHERNET_ARP_ERROR_replies_sent;
-	  next0 = ARP_INPUT_NEXT_DROP;
+		  /* 初始化next节点和错误信息 */
+		  error0 = ETHERNET_ARP_ERROR_replies_sent;
+		  next0 = ARP_INPUT_NEXT_DROP;
 
-	  error0 =
-	    (arp0->l2_type !=
-	     clib_net_to_host_u16 (ETHERNET_ARP_HARDWARE_TYPE_ethernet) ?
-	     ETHERNET_ARP_ERROR_l2_type_not_ethernet : error0);
-	  error0 =
-	    (arp0->l3_type !=
-	     clib_net_to_host_u16 (ETHERNET_TYPE_IP4) ?
-	     ETHERNET_ARP_ERROR_l3_type_not_ip4 : error0);
-	  error0 =
-	    (0 == arp0->ip4_over_ethernet[0].ip4.as_u32 ?
-	     ETHERNET_ARP_ERROR_l3_dst_address_unset : error0);
+		  /* 检查arp头中硬件类型是否以太网类型 */
+		  error0 =
+			(arp0->l2_type !=
+			 clib_net_to_host_u16 (ETHERNET_ARP_HARDWARE_TYPE_ethernet) ?
+			 ETHERNET_ARP_ERROR_l2_type_not_ethernet : error0);
+	      /* 检查arp头中协议类型是否ipv4类型 */
+		  error0 =
+			(arp0->l3_type !=
+			 clib_net_to_host_u16 (ETHERNET_TYPE_IP4) ?
+			 ETHERNET_ARP_ERROR_l3_type_not_ip4 : error0);
+	      /* 检查arp中目的ip是否设置 */
+		  error0 =
+			(0 == arp0->ip4_over_ethernet[0].ip4.as_u32 ?
+			 ETHERNET_ARP_ERROR_l3_dst_address_unset : error0);
+		  
+		  /* 上面三个检查都通过，这儿应该还是初始值 */
+		  if (ETHERNET_ARP_ERROR_replies_sent == error0)
+			{
+			  /* 设置next为arp-disabled */
+			  next0 = ARP_INPUT_NEXT_DISABLED;
+			  /* 使能sw_if_index rx方向的弧特性，
+			  在arc中指定的起始node中，必须调用vnet_feature_arc_start函数，才能正式进入feature机制业务流程，该函数会将下一跳强行指定为arc中的下一个feature（这里是arp-disabled）。 */
+			  vnet_feature_arc_start (am->feature_arc_index,
+						  vnet_buffer (p0)->sw_if_index[VLIB_RX],
+						  &next0, p0);
+			}
+		  /* 检查未通过，设置p0错误 */
+		  else
+			p0->error = node->errors[error0];
 
-	  if (ETHERNET_ARP_ERROR_replies_sent == error0)
-	    {
-	      next0 = ARP_INPUT_NEXT_DISABLED;
-	      vnet_feature_arc_start (am->feature_arc_index,
-				      vnet_buffer (p0)->sw_if_index[VLIB_RX],
-				      &next0, p0);
-	    }
-	  else
-	    p0->error = node->errors[error0];
-
-	  vlib_validate_buffer_enqueue_x1 (vm, node, next_index, to_next,
-					   n_left_to_next, pi0, next0);
-	}
-
+		  /* 验证处理结果 */
+		  vlib_validate_buffer_enqueue_x1 (vm, node, next_index, to_next,
+						   n_left_to_next, pi0, next0);
+		}
+	  /* 把传递给下一个node的数据包写入特定位置。这样下一个node将正式可以被调度框架调度，并处理传给他的数据包 */
       vlib_put_next_frame (vm, node, next_index, n_left_to_next);
     }
-
+	
+  /* 返回frame中数据包个数 */
   return frame->n_vectors;
 }
 ```
@@ -186,7 +208,7 @@ arp_disabled (vlib_main_t * vm,
 
   /* 检查节点trace标志 */
   if (node->flags & VLIB_NODE_FLAG_TRACE)
-    /* 手机buffer的trace信息 */
+    /* 收集buffer的trace信息 */
     vlib_trace_frame_buffers_only (vm, node, from, frame->n_vectors,
 				   /* stride */ 1,
 				   sizeof (ethernet_arp_input_trace_t));
