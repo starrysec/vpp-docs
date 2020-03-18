@@ -223,7 +223,7 @@ span_node_inline_fn (vlib_main_t * vm, vlib_node_runtime_t * node,
 
 	  b0 = vlib_get_buffer (vm, bi0);
 	  b1 = vlib_get_buffer (vm, bi1);
-	  /* 获取数据包b0在rx后者tx方向的接口索引 */
+	  /* 获取数据包b0在rx后者tx方向的镜像接口索引 */
 	  sw_if_index0 = vnet_buffer (b0)->sw_if_index[rxtx];
 	  sw_if_index1 = vnet_buffer (b1)->sw_if_index[rxtx];
 
@@ -351,56 +351,83 @@ span_mirror (vlib_main_t * vm, vlib_node_runtime_t * node, u32 sw_if_index0,
   span_interface_t *si0;
   span_mirror_t *sm0;
 
+  /* 校验镜像接口 */
   if (sw_if_index0 >= vec_len (sm->interfaces))
     return;
 
+  /* 根据镜像接口索引，获取镜像接口结构体 */
   si0 = vec_elt_at_index (sm->interfaces, sw_if_index0);
+  /* 获取该镜像接口对应方向上的监控接口结构体 */
   sm0 = &si0->mirror_rxtx[sf][rxtx];
 
+  /* 校验监控接口个数 */
   if (sm0->num_mirror_ports == 0)
     return;
 
+  /* 克隆数据包标志 */
   /* Don't do it again */
   if (PREDICT_FALSE (b0->flags & VNET_BUFFER_F_SPAN_CLONE))
     return;
 
+  /* 遍历监控接口，构造镜像frames */
   /* *INDENT-OFF* */
   clib_bitmap_foreach (i, sm0->mirror_ports, (
     {
+	  /* 根据配置，分配一次frame内存 */
       if (mirror_frames[i] == 0)
-        {
+      {
+		  /* 从L2镜像 */
           if (sf == SPAN_FEAT_L2)
+		    /* 从下个输出节点分配frame内存 */
             mirror_frames[i] = vlib_get_frame_to_node (vm, l2output_node.index);
-          else
+          /* 从device镜像 */
+		  else
+		    /* 从输出device分配frame内存 */
             mirror_frames[i] = vnet_get_frame_to_sw_interface (vnm, i);
-	}
+      }
+	  
+	  /* 获取镜像frame的起始地址 */
       to_mirror_next = vlib_frame_vector_args (mirror_frames[i]);
+	  /* 置to_mirror_next到frame结尾 */
       to_mirror_next += mirror_frames[i]->n_vectors;
+	  /* 从b0克隆个新数据包c0 */
       /* This can fail */
       c0 = vlib_buffer_copy (vm, b0);
       if (PREDICT_TRUE(c0 != 0))
         {
+		  /* 设置新数据包c0的tx接口为监控接口 */
           vnet_buffer (c0)->sw_if_index[VLIB_TX] = i;
+		  /* 设置新数据包c0的标志位clone标志 */
           c0->flags |= VNET_BUFFER_F_SPAN_CLONE;
+		  /* 从L2镜像 */
           if (sf == SPAN_FEAT_L2)
-	    vnet_buffer (c0)->l2.feature_bitmap = L2OUTPUT_FEAT_OUTPUT;
-          to_mirror_next[0] = vlib_get_buffer_index (vm, c0);
-          mirror_frames[i]->n_vectors++;
-          if (PREDICT_FALSE (b0->flags & VLIB_BUFFER_IS_TRACED))
+		    /* 设置新数据包c0的L2层输出标记,即c0要从L2层输出 */
+			vnet_buffer (c0)->l2.feature_bitmap = L2OUTPUT_FEAT_OUTPUT;
+			/* 将新数据包c0追加到镜像frame的结尾 */
+			to_mirror_next[0] = vlib_get_buffer_index (vm, c0);
+			/* 更新镜像frame中的数据包个数+1 */
+			mirror_frames[i]->n_vectors++;
+			/* 是否使能了trace */
+			if (PREDICT_FALSE (b0->flags & VLIB_BUFFER_IS_TRACED))
             {
+			  /* 初始化trace信息 */
               span_trace_t *t = vlib_add_trace (vm, node, b0, sizeof (*t));
+			  /* 收集镜像接口 */
               t->src_sw_if_index = sw_if_index0;
+			  /* 收集监控接口 */
               t->mirror_sw_if_index = i;
 #if 0
-	      /* Enable this path to allow packet trace of SPAN packets.
-	         Note that all SPAN packets will show up on the trace output
-	         with the first SPAN packet (since they are in the same frame)
-	         thus making trace output of the original packet confusing */
-	      mirror_frames[i]->flags |= VLIB_FRAME_TRACE;
-	      c0->flags |= VLIB_BUFFER_IS_TRACED;
+			  /* Enable this path to allow packet trace of SPAN packets.
+	           Note that all SPAN packets will show up on the trace output
+	           with the first SPAN packet (since they are in the same frame)
+	           thus making trace output of the original packet confusing */
+			  /* 镜像frame设置trace标志，允许trace镜像后的数据包 */
+			  mirror_frames[i]->flags |= VLIB_FRAME_TRACE;
+			  /* 设置新数据包c0被traced的标志 */
+			  c0->flags |= VLIB_BUFFER_IS_TRACED;
 #endif
+	        }
 	    }
-	}
     }));
   /* *INDENT-ON* */
 }
