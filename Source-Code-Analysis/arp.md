@@ -470,6 +470,7 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
       /* 前缀地址 */
 	  if_addr0 = &pfx0->fp_addr.ip4;
 
+      /* 是否vrrp arp响应 */
 	  is_vrrp_reply0 =
 	    ((arp0->opcode ==
 	      clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_reply))
@@ -478,6 +479,7 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 	      (arp0->ip4_over_ethernet[0].mac.bytes, vrrp_prefix,
 	       sizeof (vrrp_prefix))));
 
+      /* arp二层mac地址不匹配，除非是vrrp响应 */
 	  /* Trash ARP packets whose ARP-level source addresses do not
 	     match their L2-frame-level source addresses, unless it's
 	     a reply from a VRRP virtual router */
@@ -491,20 +493,24 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 
 	  /* Learn or update sender's mapping only for replies to addresses
 	   * that are local to the subnet */
+      /* arp响应 */
 	  if (arp0->opcode ==
 	      clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_reply))
 	    {
+          /* arp响应目的地址是本地接口地址 */
 	      if (dst_is_local0)
-		error0 =
-		  arp_learn (sw_if_index0, &arp0->ip4_over_ethernet[0]);
+            /* arp学习 */
+            error0 =
+            arp_learn (sw_if_index0, &arp0->ip4_over_ethernet[0]);
+          /* arp响应目的地址不是本地接口地址，可能是gapp */
 	      else
-		/* a reply for a non-local destination could be a GARP.
-		 * GARPs for hosts we know were handled above, so this one
-		 * we drop */
-		error0 = ETHERNET_ARP_ERROR_l3_dst_address_not_local;
+            /* a reply for a non-local destination could be a GARP.
+             * GARPs for hosts we know were handled above, so this one
+             * we drop */
+            error0 = ETHERNET_ARP_ERROR_l3_dst_address_not_local;
 
 	      goto next_feature;
-	    }
+      /* arp请求，目的地址为本地地址的情况 */
 	  else if (arp0->opcode ==
 		   clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_request) &&
 		   (dst_is_local0 == 0))
@@ -535,6 +541,7 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 	      goto drop;
 	    }
 
+      /* 构造replay，并发送 */
 	  next0 = arp_mk_reply (vnm, p0, sw_if_index0,
 				if_addr0, arp0, eth_rx);
 
@@ -565,6 +572,60 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 		    ETHERNET_ARP_ERROR_replies_sent, n_replies_sent);
 
   return frame->n_vectors;
+}
+```
+
+```
+static_always_inline u32
+arp_mk_reply (vnet_main_t * vnm,
+          vlib_buffer_t * p0,
+          u32 sw_if_index0,
+          const ip4_address_t * if_addr0,
+          ethernet_arp_header_t * arp0, ethernet_header_t * eth_rx)
+{
+  vnet_hw_interface_t *hw_if0;
+  u8 *rewrite0, rewrite0_len;
+  ethernet_header_t *eth_tx;
+  u32 next0;
+
+  /* Send a reply.
+     An adjacency to the sender is not always present,
+     so we use the interface to build us a rewrite string
+     which will contain all the necessary tags. */
+  rewrite0 = ethernet_build_rewrite (vnm, sw_if_index0,
+                     VNET_LINK_ARP, eth_rx->src_address);
+  rewrite0_len = vec_len (rewrite0);
+
+  /* Figure out how much to rewind current data from adjacency. */
+  vlib_buffer_advance (p0, -rewrite0_len);
+  eth_tx = vlib_buffer_get_current (p0);
+
+  vnet_buffer (p0)->sw_if_index[VLIB_TX] = sw_if_index0;
+  hw_if0 = vnet_get_sup_hw_interface (vnm, sw_if_index0);
+
+  /* Send reply back through input interface */
+  vnet_buffer (p0)->sw_if_index[VLIB_TX] = sw_if_index0;
+  next0 = ARP_REPLY_NEXT_REPLY_TX;
+
+  arp0->opcode = clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_reply);
+
+  arp0->ip4_over_ethernet[1] = arp0->ip4_over_ethernet[0];
+
+  mac_address_from_bytes (&arp0->ip4_over_ethernet[0].mac,
+              hw_if0->hw_address);
+  clib_mem_unaligned (&arp0->ip4_over_ethernet[0].ip4.data_u32, u32) =
+    if_addr0->data_u32;
+
+  /* Hardware must be ethernet-like. */
+  ASSERT (vec_len (hw_if0->hw_address) == 6);
+
+  /* the rx nd tx ethernet headers wil overlap in the case
+   * when we received a tagged VLAN=0 packet, but we are sending
+   * back untagged */
+  clib_memcpy_fast (eth_tx, rewrite0, vec_len (rewrite0));
+  vec_free (rewrite0);
+
+  return (next0);
 }
 ```
 
