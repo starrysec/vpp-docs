@@ -151,3 +151,188 @@ VLIB_CLI_COMMAND (show_interfaces_span_command, static) = {
 ```
 
 ### 处理
+
+#### vnet/span/node.c
+
+```
+VLIB_REGISTER_NODE (span_input_node) = {
+  span_node_defs,
+  .name = "span-input",
+};
+
+VLIB_REGISTER_NODE (span_output_node) = {
+  span_node_defs,
+  .name = "span-output",
+};
+
+VLIB_REGISTER_NODE (span_l2_input_node) = {
+  span_node_defs,
+  .name = "span-l2-input",
+};
+
+VLIB_REGISTER_NODE (span_l2_output_node) = {
+  span_node_defs,
+  .name = "span-l2-output",
+};
+```
+
+```
+static_always_inline uword
+span_node_inline_fn (vlib_main_t * vm, vlib_node_runtime_t * node,
+		     vlib_frame_t * frame, vlib_rx_or_tx_t rxtx,
+		     span_feat_t sf)
+{
+  span_main_t *sm = &span_main;
+  vnet_main_t *vnm = vnet_get_main ();
+  u32 n_left_from, *from, *to_next;
+  u32 next_index;
+  u32 sw_if_index;
+  static __thread vlib_frame_t **mirror_frames = 0;
+
+  from = vlib_frame_vector_args (frame);
+  n_left_from = frame->n_vectors;
+  next_index = node->cached_next_index;
+
+  vec_validate_aligned (mirror_frames, sm->max_sw_if_index,
+			CLIB_CACHE_LINE_BYTES);
+
+  while (n_left_from > 0)
+    {
+      u32 n_left_to_next;
+
+      vlib_get_next_frame (vm, node, next_index, to_next, n_left_to_next);
+
+      while (n_left_from >= 4 && n_left_to_next >= 2)
+	{
+	  u32 bi0;
+	  u32 bi1;
+	  vlib_buffer_t *b0;
+	  vlib_buffer_t *b1;
+	  u32 sw_if_index0;
+	  u32 next0 = 0;
+	  u32 sw_if_index1;
+	  u32 next1 = 0;
+
+	  /* speculatively enqueue b0, b1 to the current next frame */
+	  to_next[0] = bi0 = from[0];
+	  to_next[1] = bi1 = from[1];
+	  to_next += 2;
+	  n_left_to_next -= 2;
+	  from += 2;
+	  n_left_from -= 2;
+
+	  b0 = vlib_get_buffer (vm, bi0);
+	  b1 = vlib_get_buffer (vm, bi1);
+	  /* 获取数据包b0在rx后者tx方向的接口索引 */
+	  sw_if_index0 = vnet_buffer (b0)->sw_if_index[rxtx];
+	  sw_if_index1 = vnet_buffer (b1)->sw_if_index[rxtx];
+
+	  /* 构造镜像后的镜像frames */
+	  span_mirror (vm, node, sw_if_index0, b0, mirror_frames, rxtx, sf);
+	  span_mirror (vm, node, sw_if_index1, b1, mirror_frames, rxtx, sf);
+
+	  switch (sf)
+	    {
+		/* 从L2镜像 */
+	    case SPAN_FEAT_L2:
+	      if (rxtx == VLIB_RX)
+		{
+		  /* 根据配置获取next节点 */
+		  next0 = vnet_l2_feature_next (b0, sm->l2_input_next,
+						L2INPUT_FEAT_SPAN);
+		  next1 = vnet_l2_feature_next (b1, sm->l2_input_next,
+						L2INPUT_FEAT_SPAN);
+		}
+	      else
+		{
+		  /* 根据配置获取next节点 */
+		  next0 = vnet_l2_feature_next (b0, sm->l2_output_next,
+						L2OUTPUT_FEAT_SPAN);
+		  next1 = vnet_l2_feature_next (b1, sm->l2_output_next,
+						L2OUTPUT_FEAT_SPAN);
+		}
+	      break;
+		/* 从device镜像 */
+	    case SPAN_FEAT_DEVICE:
+	    default:
+		  /* 根据配置获取next节点 */
+	      vnet_feature_next (&next0, b0);
+	      vnet_feature_next (&next1, b1);
+	      break;
+	    }
+		
+      /* 验证处理结果 */
+	  /* verify speculative enqueue, maybe switch current next frame */
+	  vlib_validate_buffer_enqueue_x2 (vm, node, next_index,
+					   to_next, n_left_to_next,
+					   bi0, bi1, next0, next1);
+	}
+      while (n_left_from > 0 && n_left_to_next > 0)
+	{
+	  u32 bi0;
+	  vlib_buffer_t *b0;
+	  u32 sw_if_index0;
+	  u32 next0 = 0;
+
+	  /* speculatively enqueue b0 to the current next frame */
+	  to_next[0] = bi0 = from[0];
+	  to_next += 1;
+	  n_left_to_next -= 1;
+	  from += 1;
+	  n_left_from -= 1;
+
+	  b0 = vlib_get_buffer (vm, bi0);
+	  sw_if_index0 = vnet_buffer (b0)->sw_if_index[rxtx];
+
+	  span_mirror (vm, node, sw_if_index0, b0, mirror_frames, rxtx, sf);
+
+	  switch (sf)
+	    {
+	    case SPAN_FEAT_L2:
+	      if (rxtx == VLIB_RX)
+		next0 = vnet_l2_feature_next (b0, sm->l2_input_next,
+					      L2INPUT_FEAT_SPAN);
+	      else
+		next0 = vnet_l2_feature_next (b0, sm->l2_output_next,
+					      L2OUTPUT_FEAT_SPAN);
+	      break;
+	    case SPAN_FEAT_DEVICE:
+	    default:
+	      vnet_feature_next (&next0, b0);
+	      break;
+	    }
+
+	  /* verify speculative enqueue, maybe switch current next frame */
+	  vlib_validate_buffer_enqueue_x1 (vm, node, next_index, to_next,
+					   n_left_to_next, bi0, next0);
+	}
+	  /* 所有流程都正确处理完毕后，下一结点的frame上已经有本结点处理过后的数据索引
+         执行该函数，将相关信息登记到vlib_pending_frame_t中，准备开始调度处理 
+	  */
+      vlib_put_next_frame (vm, node, next_index, n_left_to_next);
+    }
+
+  /* 按照配置，输出镜像frames到next节点处理 */
+  for (sw_if_index = 0; sw_if_index < vec_len (mirror_frames); sw_if_index++)
+    {
+	  /* 根据监控端口，后去镜像frame */
+      vlib_frame_t *f = mirror_frames[sw_if_index];
+      if (f == 0)
+		continue;
+      
+	  /* 从L2镜像 */
+      if (sf == SPAN_FEAT_L2)
+		/* frame发往下一node，处理后输出 */
+		vlib_put_frame_to_node (vm, l2output_node.index, f);
+	  /* 从device镜像 */
+      else
+	    /* frame发往监端口，进行输出 */
+		vnet_put_frame_to_sw_interface (vnm, sw_if_index, f);
+	  /* 重置镜像frames */
+	  mirror_frames[sw_if_index] = 0;
+    }
+	
+  /* 返回frame中数据包个数 */
+  return frame->n_vectors;
+}
+```
