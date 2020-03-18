@@ -359,11 +359,12 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 					  /* 找到source源的表项标志 */
 					  src_flags = fib_entry_get_flags_for_source (src_fei, source);
 
-					  /* 是本地路由，拒绝回应 */
+					  /* 源地址是local地址，拒绝回应 */
 					  /* Reject requests/replies with our local interface
 						 address. */
 					  if (FIB_ENTRY_FLAG_LOCAL & src_flags)
 						{
+                          /* 置错误，进一步检查是否是arp代理情形 */
 						  error0 = ETHERNET_ARP_ERROR_l3_src_address_is_local;
 						  /*
 						   * When VPP has an interface whose address is also
@@ -378,7 +379,7 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 						  goto next_feature;
 						}
 					
-					  /* connected路由（本地接口地址）或者attached路由（本地接口地址子网） */				
+					  /* 源地址是connected或者attached，置attahced标志 */				
 					  /* A Source must also be local to subnet of matching
 					   * interface address. */
 					  if ((FIB_ENTRY_FLAG_ATTACHED & src_flags) ||
@@ -411,10 +412,10 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 			 * on the first lookup.
 			 */
 	      }
-		/* 如果不是attached路由，也不是默认路由 */
+		/* attached为假，也不是默认路由 */
 	    while (!attached &&
 		   !fib_entry_is_sourced (src_fei, FIB_SOURCE_DEFAULT_ROUTE));
-		/* 如果不是attached路由，拒绝回应 */
+		/* 如果attached为假，拒绝回应 */
 	    if (!attached)
 	      {
 		    /* 如通过路由协议生成的路由。即不是通过接口和arp配置生成的路由，也不是主机路由（x.x.x.x/32） */
@@ -429,13 +430,14 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 	      }
 	  }
 
-      使用arp头中的目的ip地址，在路由表中进行LPM（最长前缀）匹配 */
+      /* 使用arp头中的目的ip地址，在路由表中进行LPM（最长前缀）匹配 */
 	  dst_fei = ip4_fib_table_lookup (ip4_fib_get (fib_index0),
 					  &arp0->ip4_over_ethernet[1].ip4,
 					  32);
 	  /* 检查dst fib type */
 	  switch (arp_dst_fib_check (dst_fei, &dst_flags))
 	    {
+        /* 匹配adj-fib路由表 */
 	    case ARP_DST_FIB_ADJ:
 	      /*
 	       * We matched an adj-fib on ths source subnet (a /32 previously
@@ -450,17 +452,22 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 		error0 =
 		  arp_learn (sw_if_index0, &arp0->ip4_over_ethernet[0]);
 	      goto drop;
+        /* 目的地址是connectd的，继续 */
 	    case ARP_DST_FIB_CONN:
 	      /* destination is connected, continue to process */
 	      break;
+        /* 目的地址不是connected的，丢弃 */
 	    case ARP_DST_FIB_NONE:
 	      /* destination is not connected, stop here */
 	      error0 = ETHERNET_ARP_ERROR_l3_dst_address_not_local;
 	      goto next_feature;
 	    }
 
+      /* 目的地址是否local地址 */
 	  dst_is_local0 = (FIB_ENTRY_FLAG_LOCAL & dst_flags);
+      /* 前缀 */
 	  pfx0 = fib_entry_get_prefix (dst_fei);
+      /* 前缀地址 */
 	  if_addr0 = &pfx0->fp_addr.ip4;
 
 	  is_vrrp_reply0 =
