@@ -279,7 +279,9 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
       while (n_left_from > 0 && n_left_to_next > 0)
 	{
 	  vlib_buffer_t *p0;
+	  /* arp头 */
 	  ethernet_arp_header_t *arp0;
+	  /* 以太网头 */
 	  ethernet_header_t *eth_rx;
 	  const ip4_address_t *if_addr0;
 	  u32 pi0, error0, next0, sw_if_index0, conn_sw_if_index0, fib_index0;
@@ -296,23 +298,27 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 	  n_left_to_next -= 1;
 
 	  p0 = vlib_get_buffer (vm, pi0);
+	  /* 获取arp头 */
 	  arp0 = vlib_buffer_get_current (p0);
-	  /* Fill in ethernet header. */
+	  /* 填充以太网头 */
 	  eth_rx = ethernet_buffer_get_header (p0);
 
 	  next0 = ARP_REPLY_NEXT_DROP;
 	  error0 = ETHERNET_ARP_ERROR_replies_sent;
+	  /* 获取po数据入接口索引 */
 	  sw_if_index0 = vnet_buffer (p0)->sw_if_index[VLIB_RX];
 
+	  /* 使用入接口索引查找路由表索引 */
 	  /* Check that IP address is local and matches incoming interface. */
 	  fib_index0 = ip4_fib_table_get_index_for_sw_if_index (sw_if_index0);
+	  /* 未找到，错误 */
 	  if (~0 == fib_index0)
 	    {
 	      error0 = ETHERNET_ARP_ERROR_interface_no_table;
 	      goto drop;
 
 	    }
-
+	  /* 找到了fib索引 */
 	  {
 	    /*
 	     * we're looking for FIB entries that indicate the source
@@ -334,10 +340,12 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 
 	    do
 	      {
+		  /* 使用arp头中的目的ip地址，在路由表中进行LPM（最长前缀）匹配 */
 		src_fei = ip4_fib_table_lookup (ip4_fib_get (fib_index0),
 						&arp0->
 						ip4_over_ethernet[0].ip4,
 						mask);
+		/* 通过索引找到的路由表项 */
 		src_fib_entry = fib_entry_get (src_fei);
 
 		/*
@@ -348,8 +356,10 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
                 /* *INDENT-OFF* */
                 FOR_EACH_SRC_ADDED(src_fib_entry, src, source,
                 ({
+				  /* 找到source源的表项标志 */
                   src_flags = fib_entry_get_flags_for_source (src_fei, source);
 
+				  /* arp源地址是本地接口地址，拒绝回应 */
                   /* Reject requests/replies with our local interface
                      address. */
                   if (FIB_ENTRY_FLAG_LOCAL & src_flags)
@@ -367,6 +377,8 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
                        */
                       goto next_feature;
                     }
+				
+                  /* arp源地址是和接口连接的对端地址，或者同一子网的地址 */				
                   /* A Source must also be local to subnet of matching
                    * interface address. */
                   if ((FIB_ENTRY_FLAG_ATTACHED & src_flags) ||
