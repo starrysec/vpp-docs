@@ -56,7 +56,7 @@ set_interface_span_command_fn (vlib_main_t * vm,
 	return clib_error_return (0, "Invalid input");
     }
 
-  /* 新增或者删除镜像条目 */
+  /* 新增或者禁用镜像条目 */
   int rv =
     span_add_delete_entry (vm, src_sw_if_index, dst_sw_if_index, state, sf);
   if (rv == VNET_API_ERROR_INVALID_INTERFACE)
