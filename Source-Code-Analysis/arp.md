@@ -340,95 +340,100 @@ arp_reply (vlib_main_t * vm, vlib_node_runtime_t * node, vlib_frame_t * frame)
 
 	    do
 	      {
-		  /* 使用arp头中的目的ip地址，在路由表中进行LPM（最长前缀）匹配 */
-		src_fei = ip4_fib_table_lookup (ip4_fib_get (fib_index0),
-						&arp0->
-						ip4_over_ethernet[0].ip4,
-						mask);
-		/* 通过索引找到的路由表项 */
-		src_fib_entry = fib_entry_get (src_fei);
+		  /* 使用arp头中的源ip地址，在路由表中进行LPM（最长前缀）匹配 */
+			src_fei = ip4_fib_table_lookup (ip4_fib_get (fib_index0),
+							&arp0->
+							ip4_over_ethernet[0].ip4,
+							mask);
+			/* 通过索引找到的路由表项 */
+			src_fib_entry = fib_entry_get (src_fei);
 
-		/*
-		 * It's possible that the source that provides the
-		 * flags we need, or the flags we must not have,
-		 * is not the best source, so check then all.
-		 */
-                /* *INDENT-OFF* */
-                FOR_EACH_SRC_ADDED(src_fib_entry, src, source,
-                ({
-				  /* 找到source源的表项标志 */
-                  src_flags = fib_entry_get_flags_for_source (src_fei, source);
+			/*
+			 * It's possible that the source that provides the
+			 * flags we need, or the flags we must not have,
+			 * is not the best source, so check then all.
+			 */
+					/* *INDENT-OFF* */
+					FOR_EACH_SRC_ADDED(src_fib_entry, src, source,
+					({
+					  /* 找到source源的表项标志 */
+					  src_flags = fib_entry_get_flags_for_source (src_fei, source);
 
-				  /* arp源地址是本地接口地址，拒绝回应 */
-                  /* Reject requests/replies with our local interface
-                     address. */
-                  if (FIB_ENTRY_FLAG_LOCAL & src_flags)
-                    {
-                      error0 = ETHERNET_ARP_ERROR_l3_src_address_is_local;
-                      /*
-                       * When VPP has an interface whose address is also
-                       * applied to a TAP interface on the host, then VPP's
-                       * TAP interface will be unnumbered  to the 'real'
-                       * interface and do proxy ARP from the host.
-                       * The curious aspect of this setup is that ARP requests
-                       * from the host will come from the VPP's own address.
-                       * So don't drop immediately here, instead go see if this
-                       * is a proxy ARP case.
-                       */
-                      goto next_feature;
-                    }
-				
-                  /* arp源地址是和接口连接的对端地址，或者同一子网的地址 */				
-                  /* A Source must also be local to subnet of matching
-                   * interface address. */
-                  if ((FIB_ENTRY_FLAG_ATTACHED & src_flags) ||
-                      (FIB_ENTRY_FLAG_CONNECTED & src_flags))
-                    {
-                      attached = 1;
-                      break;
-                    }
-                  /*
-                   * else
-                   *  The packet was sent from an address that is not
-                   *  connected nor attached i.e. it is not from an
-                   *  address that is covered by a link's sub-net,
-                   *  nor is it a already learned host resp.
-                   */
-                }));
-                /* *INDENT-ON* */
+					  /* 是本地路由，拒绝回应 */
+					  /* Reject requests/replies with our local interface
+						 address. */
+					  if (FIB_ENTRY_FLAG_LOCAL & src_flags)
+						{
+						  error0 = ETHERNET_ARP_ERROR_l3_src_address_is_local;
+						  /*
+						   * When VPP has an interface whose address is also
+						   * applied to a TAP interface on the host, then VPP's
+						   * TAP interface will be unnumbered  to the 'real'
+						   * interface and do proxy ARP from the host.
+						   * The curious aspect of this setup is that ARP requests
+						   * from the host will come from the VPP's own address.
+						   * So don't drop immediately here, instead go see if this
+						   * is a proxy ARP case.
+						   */
+						  goto next_feature;
+						}
+					
+					  /* connected路由（本地接口地址）或者attached路由（本地接口地址子网） */				
+					  /* A Source must also be local to subnet of matching
+					   * interface address. */
+					  if ((FIB_ENTRY_FLAG_ATTACHED & src_flags) ||
+						  (FIB_ENTRY_FLAG_CONNECTED & src_flags))
+						{
+						  attached = 1;
+						  break;
+						}
+					  /*
+					   * else
+					   *  The packet was sent from an address that is not
+					   *  connected nor attached i.e. it is not from an
+					   *  address that is covered by a link's sub-net,
+					   *  nor is it a already learned host resp.
+					   */
+					}));
+					/* *INDENT-ON* */
 
-		/*
-		 * shorter mask lookup for the next iteration.
-		 */
-		pfx = fib_entry_get_prefix (src_fei);
-		mask = pfx->fp_len - 1;
+			/* 获得路由前缀和掩码 */
+			/*
+			 * shorter mask lookup for the next iteration.
+			 */
+			pfx = fib_entry_get_prefix (src_fei);
+			mask = pfx->fp_len - 1;
 
-		/*
-		 * continue until we hit the default route or we find
-		 * the attached we are looking for. The most likely
-		 * outcome is we find the attached with the first source
-		 * on the first lookup.
-		 */
+			/*
+			 * continue until we hit the default route or we find
+			 * the attached we are looking for. The most likely
+			 * outcome is we find the attached with the first source
+			 * on the first lookup.
+			 */
 	      }
+		/* 如果不是attached路由，也不是默认路由 */
 	    while (!attached &&
 		   !fib_entry_is_sourced (src_fei, FIB_SOURCE_DEFAULT_ROUTE));
-
+		/* 如果不是attached路由，拒绝回应 */
 	    if (!attached)
 	      {
-		/*
-		 * the matching route is a not attached, i.e. it was
-		 * added as a result of routing, rather than interface/ARP
-		 * configuration. If the matching route is not a host route
-		 * (i.e. a /32)
-		 */
-		error0 = ETHERNET_ARP_ERROR_l3_src_address_not_local;
-		goto drop;
+		    /* 如通过路由协议生成的路由。即不是通过接口和arp配置生成的路由，也不是主机路由（x.x.x.x/32） */
+			/*
+			 * the matching route is a not attached, i.e. it was
+			 * added as a result of routing, rather than interface/ARP
+			 * configuration. If the matching route is not a host route
+			 * (i.e. a /32)
+			 */
+			error0 = ETHERNET_ARP_ERROR_l3_src_address_not_local;
+			goto drop;
 	      }
 	  }
 
+      使用arp头中的目的ip地址，在路由表中进行LPM（最长前缀）匹配 */
 	  dst_fei = ip4_fib_table_lookup (ip4_fib_get (fib_index0),
 					  &arp0->ip4_over_ethernet[1].ip4,
 					  32);
+	  /* 检查dst fib type */
 	  switch (arp_dst_fib_check (dst_fei, &dst_flags))
 	    {
 	    case ARP_DST_FIB_ADJ:
