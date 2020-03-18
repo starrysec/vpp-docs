@@ -98,6 +98,55 @@ VLIB_REGISTER_NODE (arp_reply_node, static) =
 };
 ```
 
+```
+static uword
+arp_disabled (vlib_main_t * vm,
+	      vlib_node_runtime_t * node, vlib_frame_t * frame)
+{
+  u32 n_left_from, next_index, *from, *to_next, n_left_to_next;
+
+  from = vlib_frame_vector_args (frame);
+  n_left_from = frame->n_vectors;
+  next_index = node->cached_next_index;
+
+  if (node->flags & VLIB_NODE_FLAG_TRACE)
+    vlib_trace_frame_buffers_only (vm, node, from, frame->n_vectors,
+				   /* stride */ 1,
+				   sizeof (ethernet_arp_input_trace_t));
+
+  while (n_left_from > 0)
+    {
+      vlib_get_next_frame (vm, node, next_index, to_next, n_left_to_next);
+
+      while (n_left_from > 0 && n_left_to_next > 0)
+	{
+	  arp_disabled_next_t next0 = ARP_DISABLED_NEXT_DROP;
+	  vlib_buffer_t *p0;
+	  u32 pi0, error0;
+
+	  next0 = ARP_DISABLED_NEXT_DROP;
+	  error0 = ARP_DISABLED_ERROR_DISABLED;
+
+	  pi0 = to_next[0] = from[0];
+	  from += 1;
+	  to_next += 1;
+	  n_left_from -= 1;
+	  n_left_to_next -= 1;
+
+	  p0 = vlib_get_buffer (vm, pi0);
+	  p0->error = node->errors[error0];
+
+	  vlib_validate_buffer_enqueue_x1 (vm, node, next_index, to_next,
+					   n_left_to_next, pi0, next0);
+	}
+
+      vlib_put_next_frame (vm, node, next_index, n_left_to_next);
+    }
+
+  return frame->n_vectors;
+}
+```
+
 #### vnet/arp/arp_proxy.c
 
 ```
