@@ -336,3 +336,72 @@ span_node_inline_fn (vlib_main_t * vm, vlib_node_runtime_t * node,
   return frame->n_vectors;
 }
 ```
+
+```
+static_always_inline void
+span_mirror (vlib_main_t * vm, vlib_node_runtime_t * node, u32 sw_if_index0,
+	     vlib_buffer_t * b0, vlib_frame_t ** mirror_frames,
+	     vlib_rx_or_tx_t rxtx, span_feat_t sf)
+{
+  vlib_buffer_t *c0;
+  span_main_t *sm = &span_main;
+  vnet_main_t *vnm = vnet_get_main ();
+  u32 *to_mirror_next = 0;
+  u32 i;
+  span_interface_t *si0;
+  span_mirror_t *sm0;
+
+  if (sw_if_index0 >= vec_len (sm->interfaces))
+    return;
+
+  si0 = vec_elt_at_index (sm->interfaces, sw_if_index0);
+  sm0 = &si0->mirror_rxtx[sf][rxtx];
+
+  if (sm0->num_mirror_ports == 0)
+    return;
+
+  /* Don't do it again */
+  if (PREDICT_FALSE (b0->flags & VNET_BUFFER_F_SPAN_CLONE))
+    return;
+
+  /* *INDENT-OFF* */
+  clib_bitmap_foreach (i, sm0->mirror_ports, (
+    {
+      if (mirror_frames[i] == 0)
+        {
+          if (sf == SPAN_FEAT_L2)
+            mirror_frames[i] = vlib_get_frame_to_node (vm, l2output_node.index);
+          else
+            mirror_frames[i] = vnet_get_frame_to_sw_interface (vnm, i);
+	}
+      to_mirror_next = vlib_frame_vector_args (mirror_frames[i]);
+      to_mirror_next += mirror_frames[i]->n_vectors;
+      /* This can fail */
+      c0 = vlib_buffer_copy (vm, b0);
+      if (PREDICT_TRUE(c0 != 0))
+        {
+          vnet_buffer (c0)->sw_if_index[VLIB_TX] = i;
+          c0->flags |= VNET_BUFFER_F_SPAN_CLONE;
+          if (sf == SPAN_FEAT_L2)
+	    vnet_buffer (c0)->l2.feature_bitmap = L2OUTPUT_FEAT_OUTPUT;
+          to_mirror_next[0] = vlib_get_buffer_index (vm, c0);
+          mirror_frames[i]->n_vectors++;
+          if (PREDICT_FALSE (b0->flags & VLIB_BUFFER_IS_TRACED))
+            {
+              span_trace_t *t = vlib_add_trace (vm, node, b0, sizeof (*t));
+              t->src_sw_if_index = sw_if_index0;
+              t->mirror_sw_if_index = i;
+#if 0
+	      /* Enable this path to allow packet trace of SPAN packets.
+	         Note that all SPAN packets will show up on the trace output
+	         with the first SPAN packet (since they are in the same frame)
+	         thus making trace output of the original packet confusing */
+	      mirror_frames[i]->flags |= VLIB_FRAME_TRACE;
+	      c0->flags |= VLIB_BUFFER_IS_TRACED;
+#endif
+	    }
+	}
+    }));
+  /* *INDENT-ON* */
+}
+```
