@@ -1,6 +1,6 @@
 ## ip-neighbor
 
-ip-neighbor用于管理arp表。
+ip-neighbor模块用于管理arp表。
 
 ### 添加/删除arp缓存条目
 
