@@ -71,7 +71,7 @@ adj_show (vlib_main_t * vm,
             }
 			
 			/* [@0] ipv4-glean: xge0/0/2: mtu:9000 ffffffffffff001b21bd061d0806
-			显示adj，带详细，包括adj索引、下个动作索引、接口、mtu、rewrite字符串等 */
+			显示adj，带详细，包括adj索引、下个动作索引、接口、mtu、mac字符串等 */
             vlib_cli_output (vm, "[@%d] %U",
                              ai,
                              format_ip_adjacency,  ai,
