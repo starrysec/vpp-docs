@@ -183,7 +183,7 @@ VLIB_NODE_FN (gre_encap_node) (vlib_main_t * vm, vlib_node_runtime_t * node,
   vlib_buffer_enqueue_to_single_next (vm, node, from,
 				      GRE_ENCAP_NEXT_L2_MIDCHAIN,
 				      frame->n_vectors);
-  /* 增加GRE encap计数器 */
+  /* 更新GRE encap计数器 */
   vlib_node_increment_counter (vm, node->node_index,
 			       GRE_ERROR_PKTS_ENCAP, frame->n_vectors);
 
@@ -319,10 +319,12 @@ gre_input (vlib_main_t * vm,
 	  /* 根据gre头部上层乘客协议字段，获取next节点索引 */
       if (PREDICT_TRUE (cached_protocol == gre[0]->protocol))
 	{
+	  /* 有缓存，从缓存取值 */
 	  nidx[0] = cached_next_index;
 	}
       else
 	{
+	  /* 无缓存，则查找获取，并缓存 */
 	  cached_next_index = nidx[0] =
 	    sparse_vec_index (gm->next_by_protocol, gre[0]->protocol);
 	  cached_protocol = gre[0]->protocol;
@@ -338,14 +340,17 @@ gre_input (vlib_main_t * vm,
 	  cached_protocol = gre[1]->protocol;
 	}
 
-	  /*  */
+	  /* 获取隧道next信息 */
       ni[0] = vec_elt (gm->next_by_protocol, nidx[0]);
       ni[1] = vec_elt (gm->next_by_protocol, nidx[1]);
+	  /* next索引 */
       next[0] = ni[0].next_index;
       next[1] = ni[1].next_index;
+	  /* 隧道类型 */
       type[0] = ni[0].tunnel_type;
       type[1] = ni[1].tunnel_type;
 
+	  /* 检查错误 */
       b[0]->error = nidx[0] == SPARSE_VEC_INVALID_INDEX
 	? node->errors[GRE_ERROR_UNKNOWN_PROTOCOL]
 	: node->errors[GRE_ERROR_NONE];
@@ -397,13 +402,16 @@ gre_input (vlib_main_t * vm,
 		       ip4[1]->src_address,
 		       vnet_buffer (b[1])->ip.fib_index,
 		       type[1], TUNNEL_MODE_P2P, 0, &key[1].gtk_v4);
+	  /* 是否命中cacheed_key */
 	  matched[0] = gre_match_key4 (&cached_key.gtk_v4, &key[0].gtk_v4);
 	  matched[1] = gre_match_key4 (&cached_key.gtk_v4, &key[1].gtk_v4);
 	}
 
+	  /* 用cached_tun_sw_if_index初始化tun_sw_if_index[0] */
       tun_sw_if_index[0] = cached_tun_sw_if_index;
       tun_sw_if_index[1] = cached_tun_sw_if_index;
       if (PREDICT_FALSE (!matched[0]))
+	/* 根据生成的key[0]，获取cached_key、tun_sw_if_index[0]、cached_tun_sw_if_index的值 */
 	gre_tunnel_get (gm, node, b[0], &next[0], &key[0], &cached_key,
 			&tun_sw_if_index[0], &cached_tun_sw_if_index,
 			is_ipv6);
@@ -412,6 +420,7 @@ gre_input (vlib_main_t * vm,
 			&tun_sw_if_index[1], &cached_tun_sw_if_index,
 			is_ipv6);
 
+	  /* next节点不是drop的话，更新接口rx计数器 */
       if (PREDICT_TRUE (next[0] > GRE_INPUT_NEXT_DROP))
 	{
 	  vlib_increment_combined_counter (&gm->vnet_main->
@@ -435,6 +444,7 @@ gre_input (vlib_main_t * vm,
 	  vnet_buffer (b[1])->sw_if_index[VLIB_RX] = tun_sw_if_index[1];
 	}
 
+	  /* 开启trace，则收集数据包trace信息 */
       if (PREDICT_FALSE (b[0]->flags & VLIB_BUFFER_IS_TRACED))
 	gre_trace (vm, node, b[0], tun_sw_if_index[0], ip6[0], ip4[0],
 		   is_ipv6);
@@ -544,7 +554,7 @@ gre_input (vlib_main_t * vm,
 					   len[0] /* bytes */ );
 	  vnet_buffer (b[0])->sw_if_index[VLIB_RX] = tun_sw_if_index[0];
 	}
-
+		
       if (PREDICT_FALSE (b[0]->flags & VLIB_BUFFER_IS_TRACED))
 	gre_trace (vm, node, b[0], tun_sw_if_index[0], ip6[0], ip4[0],
 		   is_ipv6);
@@ -554,8 +564,10 @@ gre_input (vlib_main_t * vm,
       n_left_from -= 1;
     }
 
+  /* 把frame传到下个node处理 */
   vlib_buffer_enqueue_to_next (vm, node, from, nexts, frame->n_vectors);
 
+  /* 更新GRE decap计数器 */
   vlib_node_increment_counter (vm,
 			       is_ipv6 ? gre6_input_node.index :
 			       gre4_input_node.index, GRE_ERROR_PKTS_DECAP,
