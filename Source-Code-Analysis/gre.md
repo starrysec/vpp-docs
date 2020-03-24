@@ -254,12 +254,14 @@ gre_input (vlib_main_t * vm,
   u16 cached_protocol = ~0;
   u32 cached_next_index = SPARSE_VEC_INVALID_INDEX;
   u32 cached_tun_sw_if_index = ~0;
+  /* gre头部key字段，有src和dst ip生成，隧道接收端用此key进行校验 */
   gre_tunnel_key_t cached_key;
 
   from = vlib_frame_vector_args (frame);
   n_left_from = frame->n_vectors;
   vlib_get_buffers (vm, from, bufs, n_left_from);
 
+  /* 初始化gre key字段 */
   if (is_ipv6)
     clib_memset (&cached_key.gtk_v6, 0xff, sizeof (cached_key.gtk_v6));
   else
@@ -267,8 +269,10 @@ gre_input (vlib_main_t * vm,
 
   while (n_left_from >= 2)
     {
+	  /* 用于传输的外部ip头部 */
       const ip6_header_t *ip6[2];
       const ip4_header_t *ip4[2];
+	  /* 用于封装的gre头部 */
       const gre_header_t *gre[2];
       u32 nidx[2];
       next_info_t ni[2];
@@ -279,6 +283,7 @@ gre_input (vlib_main_t * vm,
       u8 matched[2];
       u32 tun_sw_if_index[2];
 
+	  /* 预取后4个数据包 */
       if (PREDICT_TRUE (n_left_from >= 6))
 	{
 	  vlib_prefetch_buffer_data (b[2], LOAD);
@@ -300,14 +305,18 @@ gre_input (vlib_main_t * vm,
       else
 	{
 	  /* ip4_local hands us the ip header, not the gre header */
+	  /* 设置外部ip头指针，待填充 */
 	  ip4[0] = vlib_buffer_get_current (b[0]);
 	  ip4[1] = vlib_buffer_get_current (b[1]);
+	  /* 设置gre头指针，待填充 */
 	  gre[0] = (void *) (ip4[0] + 1);
 	  gre[1] = (void *) (ip4[1] + 1);
+	  /*  */
 	  vlib_buffer_advance (b[0], sizeof (*ip4[0]) + sizeof (*gre[0]));
 	  vlib_buffer_advance (b[1], sizeof (*ip4[0]) + sizeof (*gre[0]));
 	}
-
+	
+	  /* 根据gre头部上层乘客协议字段，获取next节点索引 */
       if (PREDICT_TRUE (cached_protocol == gre[0]->protocol))
 	{
 	  nidx[0] = cached_next_index;
@@ -329,6 +338,7 @@ gre_input (vlib_main_t * vm,
 	  cached_protocol = gre[1]->protocol;
 	}
 
+	  /*  */
       ni[0] = vec_elt (gm->next_by_protocol, nidx[0]);
       ni[1] = vec_elt (gm->next_by_protocol, nidx[1]);
       next[0] = ni[0].next_index;
