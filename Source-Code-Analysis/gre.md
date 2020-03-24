@@ -353,11 +353,14 @@ gre_input (vlib_main_t * vm,
 	? node->errors[GRE_ERROR_UNKNOWN_PROTOCOL]
 	: node->errors[GRE_ERROR_NONE];
 
+	  /* 获取gre头flags_and_version字段(共1 byte) */
       version[0] = clib_net_to_host_u16 (gre[0]->flags_and_version);
       version[1] = clib_net_to_host_u16 (gre[1]->flags_and_version);
+	  /* version为flags_and_version最后3bits */
       version[0] &= GRE_VERSION_MASK;
       version[1] &= GRE_VERSION_MASK;
 
+	  /* 检查gre版本，版本1为PPTP(RFC2637)，不支持 */
       b[0]->error = version[0]
 	? node->errors[GRE_ERROR_UNSUPPORTED_VERSION] : b[0]->error;
       next[0] = version[0] ? GRE_INPUT_NEXT_DROP : next[0];
@@ -365,6 +368,7 @@ gre_input (vlib_main_t * vm,
 	? node->errors[GRE_ERROR_UNSUPPORTED_VERSION] : b[1]->error;
       next[1] = version[1] ? GRE_INPUT_NEXT_DROP : next[1];
 
+	  /* 获取buffer链中所有buffer的总长度 */
       len[0] = vlib_buffer_length_in_chain (vm, b[0]);
       len[1] = vlib_buffer_length_in_chain (vm, b[1]);
 
@@ -384,6 +388,7 @@ gre_input (vlib_main_t * vm,
 	}
       else
 	{
+	  /* 生成gre的key字段 */
 	  gre_mk_key4 (ip4[0]->dst_address,
 		       ip4[0]->src_address,
 		       vnet_buffer (b[0])->ip.fib_index,
