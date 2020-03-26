@@ -7,10 +7,12 @@ FD.io VPP是使用矢量包处理而非标量包处理开发的。
 
 标量数据包处理网络堆栈通常一次处理一个数据包：中断处理功能从网络接口获取单个数据包，并通过一组功能对其进行处理：fooA调用fooB调用fooC等等。
 
-> +---> fooA（packet1）+---> fooB（packet1）+---> fooC（packet1）
-> +---> fooA（packet2）+---> fooB（packet2）+---> fooC（packet2）
-> ...
-> +---> fooA（packet3）+---> fooB（packet3）+---> fooC（packet3）
+```
++---> fooA（packet1）+---> fooB（packet1）+---> fooC（packet1）
++---> fooA（packet2）+---> fooB（packet2）+---> fooC（packet2）
+...
++---> fooA（packet3）+---> fooB（packet3）+---> fooC（packet3）
+```
 
 标量数据包处理很简单，但是在以下方面效率低下：
 
@@ -21,10 +23,12 @@ FD.io VPP是使用矢量包处理而非标量包处理开发的。
 
 相反，矢量数据包处理网络堆栈一次处理多个数据包，称为“数据包矢量”或简称为“矢量”。中断处理函数从网络接口获取数据包的向量，并通过一组函数处理该向量：fooA调用fooB调用fooC等等。
 
-> +---> fooA（[packet1，+---> fooB（[packet1，+---> fooC（[packet1，+ --->
->              packet2，            packet2，             packet2，
->              ...                  ...                  ...
->              packet256]）         packet256]）          packet256]）
+```
++---> fooA（[packet1，+---> fooB（[packet1，+---> fooC（[packet1，+ --->
+             packet2，            packet2，             packet2，
+             ...                  ...                  ...
+             packet256]）         packet256]）          packet256]）
+```
 
 此方法可修复：
 
