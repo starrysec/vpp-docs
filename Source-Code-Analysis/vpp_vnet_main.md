@@ -4,6 +4,8 @@ vpp主程序main函数位于`vpp/vnet/main.c`文件中。
 
 ### vpp main函数
 
+#### vpp/vnet/main.c
+
 ```
 int
 main (int argc, char *argv[])
@@ -264,3 +266,61 @@ vpe_main_init (vlib_main_t * vm)
 
 ### vlib main函数
 
+#### vlib/unix/main.c
+
+```
+int
+vlib_unix_main (int argc, char *argv[])
+{
+  vlib_main_t *vm = &vlib_global_main;	/* one and only time for this! */
+  unformat_input_t input;
+  clib_error_t *e;
+  int i;
+
+  vm->argv = (u8 **) argv;
+  vm->name = argv[0];
+  vm->heap_base = clib_mem_get_heap ();
+  vm->heap_aligned_base = (void *)
+    (((uword) vm->heap_base) & ~(VLIB_FRAME_ALIGN - 1));
+  ASSERT (vm->heap_base);
+
+  clib_time_init (&vm->clib_time);
+
+  unformat_init_command_line (&input, (char **) vm->argv);
+  if ((e = vlib_plugin_config (vm, &input)))
+    {
+      clib_error_report (e);
+      return 1;
+    }
+  unformat_free (&input);
+
+  i = vlib_plugin_early_init (vm);
+  if (i)
+    return i;
+
+  unformat_init_command_line (&input, (char **) vm->argv);
+  if (vm->init_functions_called == 0)
+    vm->init_functions_called = hash_create (0, /* value bytes */ 0);
+  e = vlib_call_all_config_functions (vm, &input, 1 /* early */ );
+  if (e != 0)
+    {
+      clib_error_report (e);
+      return 1;
+    }
+  unformat_free (&input);
+
+  /* always load symbols, for signal handler and mheap memory get/put backtrace */
+  clib_elf_main_init (vm->name);
+
+  vec_validate (vlib_thread_stacks, 0);
+  vlib_thread_stack_init (0);
+
+  __os_thread_index = 0;
+  vm->thread_index = 0;
+
+  i = clib_calljmp (thread0, (uword) vm,
+		    (void *) (vlib_thread_stacks[0] +
+			      VLIB_THREAD_STACK_SIZE));
+  return i;
+}
+```
