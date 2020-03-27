@@ -2,15 +2,18 @@
 
 vpp主程序main函数位于`vpp/vnet/main.c`文件中。
 
-### main函数
+### vpp main函数
 
 ```
 int
 main (int argc, char *argv[])
 {
   int i;
+  /* vlib_main_t记录着vpp全局信息 */
   vlib_main_t *vm = &vlib_global_main;
+  /* api_main_t记录着api全局信息，声明设置message id的函数 */
   void vl_msg_api_set_first_available_msg_id (u16);
+  /* 初始化主堆内存大小为1G */
   uword main_heap_size = (1ULL << 30);
   u8 *sizep;
   u32 size;
@@ -52,6 +55,7 @@ main (int argc, char *argv[])
      * Load startup config from file.
      * usage: vpp -c /etc/vpp/startup.conf
      */
+    /* 以vpp -c /etc/vpp/startup.conf启动的vpp时，argc=3，解析参数 */
     if ((argc == 3) && !strncmp (argv[1], "-c", 2))
     {
       FILE *fp;
@@ -60,7 +64,8 @@ main (int argc, char *argv[])
       char **argv_ = NULL;
       char *arg = NULL;
       char *p;
-
+      
+      /* 打开配置文件 */
       fp = fopen (argv[2], "r");
       if (fp == NULL)
 	{
@@ -80,30 +85,35 @@ main (int argc, char *argv[])
 	  free (argv_);
 	  return 1;
 	}
+      /* 按行存储配置信息，不包含注释行 */
       argv_[0] = arg;
 
       while (1)
 	{
+      /* 读取一行 */
 	  if (fgets (inbuf, 4096, fp) == 0)
 	    break;
 	  p = strtok (inbuf, " \t\n");
 	  while (p != NULL)
 	    {
+          /* 注释行 */
 	      if (*p == '#')
-		break;
+		    break;
+          /* 非注释行，保存到argv_中 */
 	      argc_++;
 	      char **tmp = realloc (argv_, argc_ * sizeof (char *));
 	      if (tmp == NULL)
-		return 1;
+		    return 1;
 	      argv_ = tmp;
 	      arg = strndup (p, 1024);
 	      if (arg == NULL)
-		return 1;
+		    return 1;
 	      argv_[argc_ - 1] = arg;
 	      p = strtok (NULL, " \t\n");
 	    }
 	}
 
+      /* 关闭配置文件 */
       fclose (fp);
 
       char **tmp = realloc (argv_, (argc_ + 1) * sizeof (char *));
@@ -123,20 +133,25 @@ main (int argc, char *argv[])
    * Format: heapsize <nn>[mM][gG]
    */
 
+  /* 解析命令行其他参数 */
   for (i = 1; i < (argc - 1); i++)
     {
+      /* 指定了plugin_path，则解析 */
       if (!strncmp (argv[i], "plugin_path", 11))
 	{
 	  if (i < (argc - 1))
 	    vlib_plugin_path = argv[++i];
 	}
+      /* 指定了test_plugin_path，则解析 */
       if (!strncmp (argv[i], "test_plugin_path", 16))
 	{
 	  if (i < (argc - 1))
 	    vat_plugin_path = argv[++i];
 	}
+      /* 指定了主堆内存大小，则解析 */
       else if (!strncmp (argv[i], "heapsize", 8))
 	{
+      /* 解析单位是mM还是gG */
 	  sizep = (u8 *) argv[i + 1];
 	  size = 0;
 	  while (*sizep >= '0' && *sizep <= '9')
@@ -152,22 +167,26 @@ main (int argc, char *argv[])
 		 argv[i], (long long int) main_heap_size);
 	      goto defaulted;
 	    }
-
+      /* 更新主堆内存大小 */
 	  main_heap_size = size;
 
+      /* 单位是gG，转换为字节 */
 	  if (*sizep == 'g' || *sizep == 'G')
 	    main_heap_size <<= 30;
+      /* 单位是mM，转换为字节 */
 	  else if (*sizep == 'm' || *sizep == 'M')
 	    main_heap_size <<= 20;
 	}
+      /* 指定了主线程使用的逻辑核，则解析 */
       else if (!strncmp (argv[i], "main-core", 9))
 	{
 	  if (i < (argc - 1))
 	    {
 	      errno = 0;
+          /* 解析核数，赋值给main_core */
 	      unsigned long x = strtol (argv[++i], 0, 0);
 	      if (errno == 0)
-		main_core = x;
+		    main_core = x;
 	    }
 	}
     }
@@ -175,29 +194,35 @@ main (int argc, char *argv[])
 defaulted:
 
   /* set process affinity for main thread */
+  /* 设置主线程cpu核亲缘性，主线程绑定main_core */
   CPU_ZERO (&cpuset);
   CPU_SET (main_core, &cpuset);
   pthread_setaffinity_np (pthread_self (), sizeof (cpu_set_t), &cpuset);
 
   /* Set up the plugin message ID allocator right now... */
+  /* api_main_t记录着api全局信息，设置开始message id */
   vl_msg_api_set_first_available_msg_id (VL_MSG_FIRST_AVAILABLE);
 
-  /* Allocate main heap */
+  /* 申请主堆内存 */
   if ((main_heap = clib_mem_init_thread_safe (0, main_heap_size)))
     {
       vlib_worker_thread_t tmp;
 
-      /* Figure out which numa runs the main thread */
+      /* 根据main_core查找执行主线程的numa id(cpu) ，由于numa系统可能存在多个物理cpu，每个cpu核心上存在多个逻辑核(超线程)情况，因此需求根据main_core查找 */
       vlib_get_thread_core_numa (&tmp, main_core);
       __os_numa_index = tmp.numa_id;
 
-      /* and use the main heap as that numa's numa heap */
+      /* 将申请的主堆作为numa id的cpu的numa堆内存使用 */
       clib_mem_set_per_numa_heap (main_heap);
 
+      /* 创建hash表，记录调用的init函数列表 */
       vm->init_functions_called = hash_create (0, /* value bytes */ 0);
+      /* 初始化环境 */
       vpe_main_init (vm);
+      /* 进入vlib主函数 */
       return vlib_unix_main (argc, argv);
     }
+  /* 申请主堆内存失败，退出 */
   else
     {
       {
@@ -208,3 +233,34 @@ defaulted:
     }
 }
 ```
+
+```
+static void
+vpe_main_init (vlib_main_t * vm)
+{
+  /* 函数声明 */
+  void vat_plugin_hash_create (void);
+
+  /* 设置提示符 */
+  if (CLIB_DEBUG > 0)
+    vlib_unix_cli_set_prompt ("DBGvpp# ");
+  else
+    vlib_unix_cli_set_prompt ("vpp# ");
+
+  /* Turn off network stack components which we don't want, SRP协议参见rfc2892 */
+  vlib_mark_init_function_complete (vm, srp_init);
+
+  /*
+   * Create the binary api plugin hashes before loading plugins
+   */
+  /* 加载插件前，先创建用于记录接口引、函数、帮助的hash表 */
+  vat_plugin_hash_create ();
+
+  /* 未指定plugin_path时，自动从系统查找plugin_path */
+  if (!vlib_plugin_path)
+    vpp_find_plugin_path ();
+}
+```
+
+### vlib main函数
+
