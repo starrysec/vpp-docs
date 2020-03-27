@@ -343,38 +343,47 @@ vlib_main (vlib_main_t * volatile vm, unformat_input_t * input)
   clib_error_t *volatile error;
   vlib_node_main_t *nm = &vm->node_main;
 
+  /* 控制平面api信号传递到queue的回调函数 */
   vm->queue_signal_callback = dummy_queue_signal_callback;
 
-  /* Turn on event log. */
+  /* 设置EventLogger环形队列大小为128K */
   if (!vm->elog_main.event_ring_size)
     vm->elog_main.event_ring_size = 128 << 10;
+  /* 初始化EventLogger */
   elog_init (&vm->elog_main, vm->elog_main.event_ring_size);
+  /* 打开Event logger */
   elog_enable_disable (&vm->elog_main, 1);
+  /* 桩代码 */
   vl_api_set_elog_main (&vm->elog_main);
+  /* 桩代码 */
   (void) vl_api_set_elog_trace_api_messages (1);
 
-  /* Default name. */
+  /* Default name. Name for e.g. syslog. */
   if (!vm->name)
     vm->name = "VLIB";
 
+  /* vlib物理内存初始化 */
   if ((error = vlib_physmem_init (vm)))
     {
       clib_error_report (error);
       goto done;
     }
-
+  
+  /*  */
   if ((error = vlib_map_stat_segment_init (vm)))
     {
       clib_error_report (error);
       goto done;
     }
-
+  
+  /*  */
   if ((error = vlib_buffer_main_init (vm)))
     {
       clib_error_report (error);
       goto done;
     }
 
+  /*  */
   if ((error = vlib_thread_init (vm)))
     {
       clib_error_report (error);
