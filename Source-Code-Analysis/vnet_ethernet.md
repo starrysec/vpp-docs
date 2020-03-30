@@ -132,7 +132,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
   from = buffer_indices;
 
   while (n_left >= 20)
-    {
+  {
       vlib_buffer_t **ph = b + 16, **pd = b + 8;
       /* 索引转地址，from开始1-4数据包，存入b[0]-b[3] */
       vlib_get_buffers (vm, from, b, 4);
@@ -168,9 +168,9 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       tag += 4;
       dmac += 4;
       from += 4;
-    }
-  while (n_left >= 4)
-    {
+  }
+  while (n_left >= 4) 
+  {
       /* 索引转地址，from开始1-4数据包，存入b[0]-b[3] */
       vlib_get_buffers (vm, from, b, 4);
       eth_input_get_etype_and_tags (b, etype, tag, dmac, 0, dmac_check);
@@ -185,9 +185,9 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       tag += 4;
       dmac += 4;
       from += 4;
-    }
+  }
   while (n_left)
-    {
+  {
       vlib_get_buffers (vm, from, b, 1);
       eth_input_get_etype_and_tags (b, etype, tag, dmac, 0, dmac_check);
       eth_input_adv_and_flags_x1 (b, main_is_l3);
@@ -198,20 +198,22 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       tag += 1;
       dmac += 4;
       from += 1;
-    }
+  }
 
   /* 检查dest mac */
   if (dmac_check)
-    {
+  {
       /* 以太网接口有secondary mac地址 */
       if (ei && vec_len (ei->secondary_addrs))
+        /* 检查数据包dest mac和硬件接口mac地址是否匹配 */
 	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 1 /* have_sec_dmac */ );
       /* 以太网接口没有secondary mac地址 */
       else
+        /* 检查数据包dest mac和硬件接口mac地址是否匹配(包含secondary mac检查) */
 	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 0 /* have_sec_dmac */ );
-    }
+  }
   
   /* 根据以太网类型，获取下个L3 input节点索引 */
   next_ip4 = em->l3_next.input_next_ip4;
@@ -321,64 +323,79 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       u16 *si = slowpath_indices;
       u32 last_unknown_etype = ~0;
       u32 last_unknown_next = ~0;
+      /* 初始化dot1q_lookup结构体 */
       eth_input_tag_lookup_t dot1ad_lookup, dot1q_lookup = {
-	.mask = -1LL,
-	.tag = tags[si[0]] ^ -1LL,
-	.sw_if_index = ~0
+	    .mask = -1LL,
+	    .tag = tags[si[0]] ^ -1LL,
+	    .sw_if_index = ~0
       };
-
+      /* 初始化dot1ad_lookup结构体 */
       clib_memcpy_fast (&dot1ad_lookup, &dot1q_lookup, sizeof (dot1q_lookup));
 
       while (n_left)
 	{
 	  i = si[0];
+      /* 读取以太网类型 */
 	  u16 etype = etypes[i];
 
+      /* 802.1q(vlan) */
 	  if (etype == et_vlan)
 	    {
 	      vlib_buffer_t *b = vlib_get_buffer (vm, buffer_indices[i]);
+          /* 检查vlan tag是否匹配subinterface接口 */
 	      eth_input_tag_lookup (vm, vnm, node, hi, tags[i], nexts + i, b,
 				    &dot1q_lookup, dmacs_bad[i], 0,
 				    main_is_l3, dmac_check);
 
 	    }
+      /* 802.1ad(qinq) */
 	  else if (etype == et_dot1ad)
 	    {
 	      vlib_buffer_t *b = vlib_get_buffer (vm, buffer_indices[i]);
+          /* 检查qinq tag是否匹配subinterface接口 */
 	      eth_input_tag_lookup (vm, vnm, node, hi, tags[i], nexts + i, b,
 				    &dot1ad_lookup, dmacs_bad[i], 1,
 				    main_is_l3, dmac_check);
 	    }
+      /* 其他无tag类型 */
 	  else
 	    {
 	      /* untagged packet with not well known etyertype */
+          /* 位置以太网类型 */
 	      if (last_unknown_etype != etype)
-		{
-		  last_unknown_etype = etype;
-		  etype = clib_host_to_net_u16 (etype);
-		  last_unknown_next = eth_input_next_by_type (etype);
-		}
+		  {
+		    last_unknown_etype = etype;
+            /* 字节序转换 */
+		    etype = clib_host_to_net_u16 (etype);
+            /* next节点 */
+		    last_unknown_next = eth_input_next_by_type (etype);
+		  }
+
+          /* 验证dest mac，L3模式，dmac校验失败 */
 	      if (dmac_check && main_is_l3 && dmacs_bad[i])
-		{
-		  vlib_buffer_t *b = vlib_get_buffer (vm, buffer_indices[i]);
-		  b->error = node->errors[ETHERNET_ERROR_L3_MAC_MISMATCH];
-		  nexts[i] = ETHERNET_INPUT_NEXT_PUNT;
-		}
+		  {
+            /* 置数据包错误信息，next节点为punt */
+		    vlib_buffer_t *b = vlib_get_buffer (vm, buffer_indices[i]);
+		    b->error = node->errors[ETHERNET_ERROR_L3_MAC_MISMATCH];
+		    nexts[i] = ETHERNET_INPUT_NEXT_PUNT;
+		  }
+          /* 其他 */
 	      else
-		nexts[i] = last_unknown_next;
+		    nexts[i] = last_unknown_next;
 	    }
 
 	  /* next */
 	  n_left--;
 	  si++;
 	}
-
+      
+      /* 更新packets，bytes等计数器 */
       eth_input_update_if_counters (vm, vnm, &dot1q_lookup);
       eth_input_update_if_counters (vm, vnm, &dot1ad_lookup);
     }
 
-  /* 把frame传到下个node处理 */
-  vlib_buffer_enqueue_to_next (vm, node, buffer_indices, nexts, n_packets);
+    /* 把frame传到下个node处理 */
+    vlib_buffer_enqueue_to_next (vm, node, buffer_indices, nexts, n_packets);
 }
 ```
 
