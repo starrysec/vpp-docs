@@ -39,6 +39,7 @@ VLIB_NODE_FN (ethernet_input_node) (vlib_main_t * vm,
   if (frame->flags & ETH_INPUT_FRAME_F_SINGLE_SW_IF_IDX)
     {
       ethernet_input_frame_t *ef = vlib_frame_scalar_args (frame);
+      /* 校验和正确标记，设置了就不用在检查了(软件产生的数据包校验和都正确的) */
       int ip4_cksum_ok = (frame->flags & ETH_INPUT_FRAME_F_IP4_CKSUM_OK) != 0;
       vnet_hw_interface_t *hi = vnet_get_hw_interface (vnm, ef->hw_if_index);
       eth_input_single_int (vm, node, hi, from, n_packets, ip4_cksum_ok);
