@@ -152,7 +152,7 @@ l2input_node_inline (vlib_main_t * vm,
         }
         }
 
-      /* 分类并调度，确定next节点 */
+      /* 核心函数：分类并调度，确定next节点 */
       classify_and_dispatch (msm, b0, &next0);
       classify_and_dispatch (msm, b1, &next1);
       classify_and_dispatch (msm, b2, &next2);
@@ -229,6 +229,7 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
    *   set tx sw-if-handle
    */
 
+  /* feature掩码 */
   u32 feat_mask = ~0;
   u32 sw_if_index0 = vnet_buffer (b0)->sw_if_index[VLIB_RX];
   ethernet_header_t *h0 = vlib_buffer_get_current (b0);
@@ -240,12 +241,17 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
   vnet_buffer (b0)->l2.shg = config->shg;
 
   /* determine layer2 kind for stat and mask */
+  /* 检查dest mac地址的i/g位，I/G(Individual/Group)位,如果I/G=0,则是某台设备的MAC地址,即单播地址;如果I/G=1,则是多播地址(组播+广播=多播) */
+  /* 单播，unicast */
   if (PREDICT_FALSE (ethernet_address_cast (h0->dst_address)))
-    {
+  {
+      /* L3头 */
       u8 *l3h0 = (u8 *) h0 + vnet_buffer (b0)->l2.l2_len;
 
 #define get_u16(addr) ( *((u16 *)(addr)) )
+      /* 以太网类型 */
       u16 ethertype = clib_net_to_host_u16 (get_u16 (l3h0 - 2));
+      /* ip上层协议 */
       u8 protocol = ((ip6_header_t *) l3h0)->protocol;
 
       /* Disable bridge forwarding (flooding will execute instead if not xconnect) */
@@ -254,52 +260,51 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
              L2INPUT_FEAT_UU_FWD | L2INPUT_FEAT_GBP_FWD);
 
       if (ethertype != ETHERNET_TYPE_ARP)
-    feat_mask &= ~(L2INPUT_FEAT_ARP_UFWD);
+        feat_mask &= ~(L2INPUT_FEAT_ARP_UFWD);
 
       /* Disable ARP-term for non-ARP and non-ICMP6 packet */
       if (ethertype != ETHERNET_TYPE_ARP &&
       (ethertype != ETHERNET_TYPE_IP6 || protocol != IP_PROTOCOL_ICMP6))
-    feat_mask &= ~(L2INPUT_FEAT_ARP_TERM);
+        feat_mask &= ~(L2INPUT_FEAT_ARP_TERM);
       /*
        * For packet from BVI - set SHG of ARP request or ICMPv6 neighbor
        * solicitation packet from BVI to 0 so it can also flood to VXLAN
        * tunnels or other ports with the same SHG as that of the BVI.
        */
-      else if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] ==
-                  L2INPUT_BVI))
-    {
-      if (ethertype == ETHERNET_TYPE_ARP)
+      else if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] == L2INPUT_BVI))
+      {
+        if (ethertype == ETHERNET_TYPE_ARP)
         {
           ethernet_arp_header_t *arp0 = (ethernet_arp_header_t *) l3h0;
           if (arp0->opcode ==
           clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_request))
         vnet_buffer (b0)->l2.shg = 0;
         }
-      else            /* must be ICMPv6 */
+        else            /* must be ICMPv6 */
         {
           ip6_header_t *iph0 = (ip6_header_t *) l3h0;
           icmp6_neighbor_solicitation_or_advertisement_header_t *ndh0;
           ndh0 = ip6_next_header (iph0);
           if (ndh0->icmp.type == ICMP6_neighbor_solicitation)
-        vnet_buffer (b0)->l2.shg = 0;
+            vnet_buffer (b0)->l2.shg = 0;
         }
-    }
-    }
+      }
+  }
+  /* 多播（组播+广播） */
   else
-    {
+  {
       /*
        * For packet from BVI - set SHG of unicast packet from BVI to 0 so it
        * is not dropped on output to VXLAN tunnels or other ports with the
        * same SHG as that of the BVI.
        */
-      if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] ==
-             L2INPUT_BVI))
-    vnet_buffer (b0)->l2.shg = 0;
-    }
+      if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] == L2INPUT_BVI))
+        vnet_buffer (b0)->l2.shg = 0;
+  }
 
 
   if (config->bridge)
-    {
+  {
       /* Do bridge-domain processing */
       u16 bd_index0 = config->bd_index;
       /* save BD ID for next feature graph nodes */
@@ -307,13 +312,13 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
 
       /* Get config for the bridge domain interface */
       l2_bridge_domain_t *bd_config =
-    vec_elt_at_index (msm->bd_configs, bd_index0);
+      vec_elt_at_index (msm->bd_configs, bd_index0);
 
       /* Save bridge domain and interface seq_num */
       /* *INDENT-OFF* */
       l2fib_seq_num_t sn = {
         .swif = *l2fib_swif_seq_num(sw_if_index0),
-    .bd = bd_config->seq_num,
+        .bd = bd_config->seq_num,
       };
       /* *INDENT-ON* */
       vnet_buffer (b0)->l2.l2fib_sn = sn.as_u16;;
@@ -327,14 +332,14 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
        * than learning/flooding/forwarding should always be set.
        */
       feat_mask = feat_mask & bd_config->feature_bitmap;
-    }
+  }
   else if (config->xconnect)
-    {
+  {
       /* Set the output interface */
       vnet_buffer (b0)->sw_if_index[VLIB_TX] = config->output_sw_if_index;
-    }
+  }
   else
-    feat_mask = L2INPUT_FEAT_DROP;
+      feat_mask = L2INPUT_FEAT_DROP;
 
   /* mask out features from bitmap using packet type and bd config */
   u32 feature_bitmap = config->feature_bitmap & feat_mask;
