@@ -205,12 +205,12 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
   {
       /* 以太网接口有secondary mac地址 */
       if (ei && vec_len (ei->secondary_addrs))
-        /* 检查数据包dest mac和硬件接口mac地址是否匹配 */
+        /* 检查数据包dest mac和硬件接口mac地址是否匹配(包含secondary mac检查) */
 	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 1 /* have_sec_dmac */ );
       /* 以太网接口没有secondary mac地址 */
       else
-        /* 检查数据包dest mac和硬件接口mac地址是否匹配(包含secondary mac检查) */
+        /* 检查数据包dest mac和硬件接口mac地址是否匹配 */
 	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 0 /* have_sec_dmac */ );
   }
@@ -478,19 +478,24 @@ ethernet_input_inline (vlib_main_t * vm,
 	  b1 = b[1];
 	  b += 2;
 
+      /* 初始化错误信息 */
 	  error0 = error1 = ETHERNET_ERROR_NONE;
+      /* 以太网头 */
 	  e0 = vlib_buffer_get_current (b0);
+      /* 以太网类型 */
 	  type0 = clib_net_to_host_u16 (e0->type);
 	  e1 = vlib_buffer_get_current (b1);
 	  type1 = clib_net_to_host_u16 (e1->type);
 
 	  /* Set the L2 header offset for all packets */
+      /* 设置L2头偏移和有效标志 */
 	  vnet_buffer (b0)->l2_hdr_offset = b0->current_data;
 	  vnet_buffer (b1)->l2_hdr_offset = b1->current_data;
 	  b0->flags |= VNET_BUFFER_F_L2_HDR_OFFSET_VALID;
 	  b1->flags |= VNET_BUFFER_F_L2_HDR_OFFSET_VALID;
 
 	  /* Speed-path for the untagged case */
+      /* untagged，快速路径 */
 	  if (PREDICT_TRUE (variant == ETHERNET_INPUT_VARIANT_ETHERNET
 			    && !ethernet_frame_is_any_tagged_x2 (type0,
 								 type1)))
@@ -515,48 +520,57 @@ ethernet_input_inline (vlib_main_t * vm,
 		  ei = ethernet_get_interface (em, hi->hw_if_index);
 		  intf0 = vec_elt_at_index (em->main_intfs, hi->hw_if_index);
 		  subint0 = &intf0->untagged_subint;
+          /* 是否L2模式 */
 		  cached_is_l2 = is_l20 = subint0->flags & SUBINT_CONFIG_L2;
 		}
 
+        /* L2模式 */
 	      if (PREDICT_TRUE (is_l20 != 0))
 		{
-		  vnet_buffer (b0)->l3_hdr_offset =
-		    vnet_buffer (b0)->l2_hdr_offset +
-		    sizeof (ethernet_header_t);
-		  vnet_buffer (b1)->l3_hdr_offset =
-		    vnet_buffer (b1)->l2_hdr_offset +
-		    sizeof (ethernet_header_t);
+          /* 设置L3头偏移和有效标志 */
+		  vnet_buffer (b0)->l3_hdr_offset = vnet_buffer (b0)->l2_hdr_offset + sizeof (ethernet_header_t);
+		  vnet_buffer (b1)->l3_hdr_offset = vnet_buffer (b1)->l2_hdr_offset + sizeof (ethernet_header_t);
 		  b0->flags |= VNET_BUFFER_F_L3_HDR_OFFSET_VALID;
 		  b1->flags |= VNET_BUFFER_F_L3_HDR_OFFSET_VALID;
+
+          /* 获取next节点 */
 		  next0 = em->l2_next;
 		  vnet_buffer (b0)->l2.l2_len = sizeof (ethernet_header_t);
 		  next1 = em->l2_next;
 		  vnet_buffer (b1)->l2.l2_len = sizeof (ethernet_header_t);
 		}
+        /* L3模式 */
 	      else
 		{
 		  dmacs[0] = *(u64 *) e0;
 		  dmacs[1] = *(u64 *) e1;
 
+          /* 以太网接口有secondary mac地址 */
 		  if (ei && vec_len (ei->secondary_addrs))
+            /* 检查数据包dest mac和硬件接口mac地址是否匹配(包含secondary mac检查) */
 		    ethernet_input_inline_dmac_check (hi, dmacs,
 						      dmacs_bad,
 						      2 /* n_packets */ ,
 						      ei,
 						      1 /* have_sec_dmac */ );
-		  else
+		  /* 以太网接口没有secondary mac地址 */
+          else
+            /* 检查数据包dest mac和硬件接口mac地址是否匹配 */
 		    ethernet_input_inline_dmac_check (hi, dmacs,
 						      dmacs_bad,
 						      2 /* n_packets */ ,
 						      ei,
 						      0 /* have_sec_dmac */ );
 
+          /* dest mac检查结果: 不匹配，则置L3错误信息 */
 		  if (dmacs_bad[0])
 		    error0 = ETHERNET_ERROR_L3_MAC_MISMATCH;
 		  if (dmacs_bad[1])
 		    error1 = ETHERNET_ERROR_L3_MAC_MISMATCH;
 
+          /* 移动current_data指针到以太网头之后 */
 		  vlib_buffer_advance (b0, sizeof (ethernet_header_t));
+          /* 决定下个node */
 		  determine_next_node (em, variant, 0, type0, b0,
 				       &error0, &next0);
 		  vlib_buffer_advance (b1, sizeof (ethernet_header_t));
@@ -567,7 +581,9 @@ ethernet_input_inline (vlib_main_t * vm,
 	    }
 
 	  /* Slow-path for the tagged case */
+      /* tagged，慢速路径 */
 	slowpath:
+      /* 解析以太网头，获取vlan|qinq tags和以太网类型 */
 	  parse_header (variant,
 			b0,
 			&type0,
@@ -581,6 +597,7 @@ ethernet_input_inline (vlib_main_t * vm,
 	  old_sw_if_index0 = vnet_buffer (b0)->sw_if_index[VLIB_RX];
 	  old_sw_if_index1 = vnet_buffer (b1)->sw_if_index[VLIB_RX];
 
+      /* 查找需要用到的vlan|qinq表 */
 	  eth_vlan_table_lookups (em,
 				  vnm,
 				  old_sw_if_index0,
@@ -599,6 +616,7 @@ ethernet_input_inline (vlib_main_t * vm,
 				  &hi1,
 				  &main_intf1, &vlan_intf1, &qinq_intf1);
 
+      /* 查找处理该数据包的subinterface */
 	  identify_subint (hi0,
 			   b0,
 			   match_flags0,
