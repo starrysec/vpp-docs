@@ -978,7 +978,7 @@ determine_next_node (ethernet_main_t * em,
   else
     {
       // uncommon ethertype, check table
-      /* 根据类型确定next节点，并置错误 */
+      /* 根据类型查找next节点，并置错误 */
       u32 i0;
       i0 = sparse_vec_index (em->l3_next.input_next_by_type, type0);
       *next0 = vec_elt (em->l3_next.input_next_by_type, i0);
@@ -987,10 +987,11 @@ determine_next_node (ethernet_main_t * em,
       // The table is not populated with LLC values, so check that now.
       // If variant is variant_ethernet then we came from LLC processing. Don't
       // go back there; drop instead using by keeping the drop/bad table result.
+      /* 是802.3帧，则next为LLC处理节点 */
       if ((type0 < 0x600) && (variant == ETHERNET_INPUT_VARIANT_ETHERNET))
-	{
-	  *next0 = ETHERNET_INPUT_NEXT_LLC;
-	}
+	  {
+	    *next0 = ETHERNET_INPUT_NEXT_LLC;
+	  }
     }
 }
 ```
