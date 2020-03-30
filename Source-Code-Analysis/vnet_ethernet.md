@@ -934,13 +934,13 @@ determine_next_node (ethernet_main_t * em,
 
   /* 有错误，丢弃 */
   if (PREDICT_FALSE (*error0 != ETHERNET_ERROR_NONE))
-    {
+  {
       // some error occurred
       *next0 = ETHERNET_INPUT_NEXT_DROP;
-    }
+  }
   /* L2模式 */
   else if (is_l20)
-    {
+  {
       // record the L2 len and reset the buffer so the L2 header is preserved
       u32 eth_start = vnet_buffer (b0)->l2_hdr_offset;
       vnet_buffer (b0)->l2.l2_len = b0->current_data - eth_start;
@@ -950,33 +950,32 @@ determine_next_node (ethernet_main_t * em,
       vlib_buffer_advance (b0, -(vnet_buffer (b0)->l2.l2_len));
 
       // check for common IP/MPLS ethertypes
-    }
+  }
   /* ipv4 */
   else if (type0 == ETHERNET_TYPE_IP4)
-    {
+  {
       *next0 = em->l3_next.input_next_ip4;
-    }
+  }
   /* ipv6 */
   else if (type0 == ETHERNET_TYPE_IP6)
-    {
+  {
       *next0 = em->l3_next.input_next_ip6;
-    }
+  }
   /* mpls */
   else if (type0 == ETHERNET_TYPE_MPLS)
-    {
+  {
       *next0 = em->l3_next.input_next_mpls;
-
-    }
+  }
   /* 开启了L3重定向，则next节点为重定向节点 */
   else if (em->redirect_l3)
-    {
+  {
       // L3 Redirect is on, the cached common next nodes will be
       // pointing to the redirect node, catch the uncommon types here
       *next0 = em->redirect_l3_next;
-    }
+  }
   /* 其他类型 */
   else
-    {
+  {
       // uncommon ethertype, check table
       /* 根据类型查找next节点，并置错误 */
       u32 i0;
@@ -992,6 +991,6 @@ determine_next_node (ethernet_main_t * em,
 	  {
 	    *next0 = ETHERNET_INPUT_NEXT_LLC;
 	  }
-    }
+  }
 }
 ```
