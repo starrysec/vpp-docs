@@ -928,14 +928,17 @@ determine_next_node (ethernet_main_t * em,
 		     u32 is_l20,
 		     u32 type0, vlib_buffer_t * b0, u8 * error0, u8 * next0)
 {
+  /* 设置L3头偏移和有效标志 */
   vnet_buffer (b0)->l3_hdr_offset = b0->current_data;
   b0->flags |= VNET_BUFFER_F_L3_HDR_OFFSET_VALID;
 
+  /* 有错误，丢弃 */
   if (PREDICT_FALSE (*error0 != ETHERNET_ERROR_NONE))
     {
       // some error occurred
       *next0 = ETHERNET_INPUT_NEXT_DROP;
     }
+  /* L2模式 */
   else if (is_l20)
     {
       // record the L2 len and reset the buffer so the L2 header is preserved
@@ -948,34 +951,38 @@ determine_next_node (ethernet_main_t * em,
 
       // check for common IP/MPLS ethertypes
     }
+  /* ipv4 */
   else if (type0 == ETHERNET_TYPE_IP4)
     {
       *next0 = em->l3_next.input_next_ip4;
     }
+  /* ipv6 */
   else if (type0 == ETHERNET_TYPE_IP6)
     {
       *next0 = em->l3_next.input_next_ip6;
     }
+  /* mpls */
   else if (type0 == ETHERNET_TYPE_MPLS)
     {
       *next0 = em->l3_next.input_next_mpls;
 
     }
+  /* 开启了L3重定向，则next节点为重定向节点 */
   else if (em->redirect_l3)
     {
       // L3 Redirect is on, the cached common next nodes will be
       // pointing to the redirect node, catch the uncommon types here
       *next0 = em->redirect_l3_next;
     }
+  /* 其他类型 */
   else
     {
       // uncommon ethertype, check table
+      /* 根据类型确定next节点，并置错误 */
       u32 i0;
       i0 = sparse_vec_index (em->l3_next.input_next_by_type, type0);
       *next0 = vec_elt (em->l3_next.input_next_by_type, i0);
-      *error0 =
-	i0 ==
-	SPARSE_VEC_INVALID_INDEX ? ETHERNET_ERROR_UNKNOWN_TYPE : *error0;
+      *error0 = i0 == SPARSE_VEC_INVALID_INDEX ? ETHERNET_ERROR_UNKNOWN_TYPE : *error0;
 
       // The table is not populated with LLC values, so check that now.
       // If variant is variant_ethernet then we came from LLC processing. Don't
