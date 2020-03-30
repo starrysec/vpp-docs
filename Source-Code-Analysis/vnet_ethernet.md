@@ -697,9 +697,11 @@ ethernet_input_inline (vlib_main_t * vm,
 		}
 	    }
 
+      /* 不是L2模式 */
 	  if (variant == ETHERNET_INPUT_VARIANT_NOT_L2)
 	    is_l20 = is_l21 = 0;
 
+      /* 决定下个node */
 	  determine_next_node (em, variant, is_l20, type0, b0, &error0,
 			       &next0);
 	  determine_next_node (em, variant, is_l21, type1, b1, &error1,
@@ -915,6 +917,73 @@ ethernet_input_inline (vlib_main_t * vm,
 	 + VNET_INTERFACE_COUNTER_RX,
 	 thread_index, stats_sw_if_index, stats_n_packets, stats_n_bytes);
       node->runtime_data[0] = stats_sw_if_index;
+    }
+}
+```
+
+```
+static_always_inline void
+determine_next_node (ethernet_main_t * em,
+		     ethernet_input_variant_t variant,
+		     u32 is_l20,
+		     u32 type0, vlib_buffer_t * b0, u8 * error0, u8 * next0)
+{
+  vnet_buffer (b0)->l3_hdr_offset = b0->current_data;
+  b0->flags |= VNET_BUFFER_F_L3_HDR_OFFSET_VALID;
+
+  if (PREDICT_FALSE (*error0 != ETHERNET_ERROR_NONE))
+    {
+      // some error occurred
+      *next0 = ETHERNET_INPUT_NEXT_DROP;
+    }
+  else if (is_l20)
+    {
+      // record the L2 len and reset the buffer so the L2 header is preserved
+      u32 eth_start = vnet_buffer (b0)->l2_hdr_offset;
+      vnet_buffer (b0)->l2.l2_len = b0->current_data - eth_start;
+      *next0 = em->l2_next;
+      ASSERT (vnet_buffer (b0)->l2.l2_len ==
+	      ethernet_buffer_header_size (b0));
+      vlib_buffer_advance (b0, -(vnet_buffer (b0)->l2.l2_len));
+
+      // check for common IP/MPLS ethertypes
+    }
+  else if (type0 == ETHERNET_TYPE_IP4)
+    {
+      *next0 = em->l3_next.input_next_ip4;
+    }
+  else if (type0 == ETHERNET_TYPE_IP6)
+    {
+      *next0 = em->l3_next.input_next_ip6;
+    }
+  else if (type0 == ETHERNET_TYPE_MPLS)
+    {
+      *next0 = em->l3_next.input_next_mpls;
+
+    }
+  else if (em->redirect_l3)
+    {
+      // L3 Redirect is on, the cached common next nodes will be
+      // pointing to the redirect node, catch the uncommon types here
+      *next0 = em->redirect_l3_next;
+    }
+  else
+    {
+      // uncommon ethertype, check table
+      u32 i0;
+      i0 = sparse_vec_index (em->l3_next.input_next_by_type, type0);
+      *next0 = vec_elt (em->l3_next.input_next_by_type, i0);
+      *error0 =
+	i0 ==
+	SPARSE_VEC_INVALID_INDEX ? ETHERNET_ERROR_UNKNOWN_TYPE : *error0;
+
+      // The table is not populated with LLC values, so check that now.
+      // If variant is variant_ethernet then we came from LLC processing. Don't
+      // go back there; drop instead using by keeping the drop/bad table result.
+      if ((type0 < 0x600) && (variant == ETHERNET_INPUT_VARIANT_ETHERNET))
+	{
+	  *next0 = ETHERNET_INPUT_NEXT_LLC;
+	}
     }
 }
 ```
