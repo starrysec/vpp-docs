@@ -78,11 +78,11 @@ eth_input_single_int (vlib_main_t * vm, vlib_node_runtime_t * node,
          is not in promisc node, so we dont't need to check DMAC */
       int is_l3 = 1;
 
-      /* 不是混杂模式，需要检查dest mac */
+      /* 不是混杂模式，不需要检查dest mac */
       if (promisc == 0)
 	    eth_input_process_frame (vm, node, hi, from, n_pkts, is_l3,
 				 ip4_cksum_ok, 0);
-      /* 混杂模式，不需要检查dest mac */
+      /* 混杂模式，需要检查dest mac */
       else
 	    /* subinterfaces and promisc mode so DMAC check is needed */
 	    eth_input_process_frame (vm, node, hi, from, n_pkts, is_l3,
@@ -126,6 +126,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
   i32 n_left = n_packets;
   vlib_buffer_t *b[20];
   u32 *from;
+  /* 通过硬件接口索引，获取以太网接口实例 */
   ethernet_interface_t *ei = ethernet_get_interface (em, hi->hw_if_index);
 
   from = buffer_indices;
@@ -133,12 +134,18 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
   while (n_left >= 20)
     {
       vlib_buffer_t **ph = b + 16, **pd = b + 8;
+      /* 索引转地址，from开始1-4数据包，存入b[0]-b[3] */
       vlib_get_buffers (vm, from, b, 4);
+      /* 索引转地址，from开始9-12数据包，存入pd[0]-pd[3]，即b[8]-b[11] */
       vlib_get_buffers (vm, from + 8, pd, 4);
+      /* 索引转地址，from开始17-20数据包，存入ph[0]-ph[3]，即b[16]-b[19] */
       vlib_get_buffers (vm, from + 16, ph, 4);
 
+      /* 预取ph[0]的64字节头 */
       vlib_prefetch_buffer_header (ph[0], LOAD);
+      /* 预取ph[0]的数据 */
       vlib_prefetch_buffer_data (pd[0], LOAD);
+      /* 获取以太网类型和tag(如vlan)，如果要校验dmac则也获取dest mac地址 */
       eth_input_get_etype_and_tags (b, etype, tag, dmac, 0, dmac_check);
 
       vlib_prefetch_buffer_header (ph[1], LOAD);
@@ -164,6 +171,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
     }
   while (n_left >= 4)
     {
+      /* 索引转地址，from开始1-4数据包，存入b[0]-b[3] */
       vlib_get_buffers (vm, from, b, 4);
       eth_input_get_etype_and_tags (b, etype, tag, dmac, 0, dmac_check);
       eth_input_get_etype_and_tags (b, etype, tag, dmac, 1, dmac_check);
@@ -192,21 +200,27 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       from += 1;
     }
 
+  /* 检查dest mac */
   if (dmac_check)
     {
+      /* 以太网接口有secondary mac地址 */
       if (ei && vec_len (ei->secondary_addrs))
-	eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
+	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 1 /* have_sec_dmac */ );
+      /* 以太网接口没有secondary mac地址 */
       else
-	eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
+	    eth_input_process_frame_dmac_check (hi, dmacs, dmacs_bad, n_packets,
 					    ei, 0 /* have_sec_dmac */ );
     }
-
+  
+  /* 根据以太网类型，获取下个L3 input节点索引 */
   next_ip4 = em->l3_next.input_next_ip4;
   next_ip6 = em->l3_next.input_next_ip6;
   next_mpls = em->l3_next.input_next_mpls;
+  /* 根据以太网类型，获取下个L2 input节点索引 */
   next_l2 = em->l2_next;
 
+  /* 已设置ipv4校验和正确，则不需再校验 */
   if (next_ip4 == ETHERNET_INPUT_NEXT_IP4_INPUT && ip4_cksum_ok)
     next_ip4 = ETHERNET_INPUT_NEXT_IP4_INPUT_NCS;
 
@@ -224,6 +238,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
   u16x16 stairs = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
 #endif
 
+  /* etype是etypes数组的首地址 */
   etype = etypes;
   n_left = n_packets;
   next = nexts;
@@ -273,20 +288,24 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
 	  continue;
 	}
 #endif
+      /* L3模式，以太网类型ipv4，则fastpath */
       if (main_is_l3 && etype[0] == et_ip4)
-	next[0] = next_ip4;
+	    next[0] = next_ip4;
+      /* L3模式，以太网类型ipv6，则fastpath */
       else if (main_is_l3 && etype[0] == et_ip6)
-	next[0] = next_ip6;
+	    next[0] = next_ip6;
+      /* L3模式，以太网类型mpls，则fastpath */
       else if (main_is_l3 && etype[0] == et_mpls)
-	next[0] = next_mpls;
-      else if (main_is_l3 == 0 &&
-	       etype[0] != et_vlan && etype[0] != et_dot1ad)
-	next[0] = next_l2;
+	    next[0] = next_mpls;
+      /* L2模式，untagged，则fastpath */
+      else if (main_is_l3 == 0 && etype[0] != et_vlan && etype[0] != et_dot1ad)
+	    next[0] = next_l2;
+      /* 其他，slowpath */
       else
-	{
-	  next[0] = 0;
-	  slowpath_indices[n_slowpath++] = i;
-	}
+        {
+          next[0] = 0;
+          slowpath_indices[n_slowpath++] = i;
+        }
 
       etype += 1;
       next += 1;
@@ -294,6 +313,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       i += 1;
     }
 
+  /* 有需要slowpath处理的数据包 */
   if (n_slowpath)
     {
       vnet_main_t *vnm = vnet_get_main ();
@@ -357,6 +377,7 @@ eth_input_process_frame (vlib_main_t * vm, vlib_node_runtime_t * node,
       eth_input_update_if_counters (vm, vnm, &dot1ad_lookup);
     }
 
+  /* 把frame传到下个node处理 */
   vlib_buffer_enqueue_to_next (vm, node, buffer_indices, nexts, n_packets);
 }
 ```
