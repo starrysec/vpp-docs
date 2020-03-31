@@ -616,7 +616,7 @@ ethernet_input_inline (vlib_main_t * vm,
 				  &hi1,
 				  &main_intf1, &vlan_intf1, &qinq_intf1);
 
-      /* 查找处理该数据包的subinterface */
+      /* 查找处理该数据包的subinterface，匹配vlan id */
 	  identify_subint (hi0,
 			   b0,
 			   match_flags0,
