@@ -373,3 +373,6 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
                         feature_bitmap);
 }
 ```
+### 配置
+
+### vnet/l2/l2_bd.c
