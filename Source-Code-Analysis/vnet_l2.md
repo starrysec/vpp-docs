@@ -639,68 +639,82 @@ show_l2fib (vlib_main_t * vm,
   };
 
   while (unformat_check_input (input) != UNFORMAT_END_OF_INPUT)
-    {
-      if (unformat (input, "raw"))
+  {
+    /* 解析raw标志，即原始信息 */
+    if (unformat (input, "raw"))
 	{
 	  raw = 1;
 	  ctx.verbose = 0;
 	  break;
 	}
-      else if (unformat (input, "verbose"))
-	ctx.verbose = 1;
-      else if (unformat (input, "all"))
-	ctx.verbose = 1;
-      else if (unformat (input, "bd_index %d", &ctx.bd_index))
-	ctx.verbose = 1;
-      else if (unformat (input, "learn"))
+	/* 解析verbose标志，即显示详情 */
+    else if (unformat (input, "verbose"))
+  	  ctx.verbose = 1;
+	/* 解析all标志，显示所有bd的l2fib详情 */
+    else if (unformat (input, "all"))
+	  ctx.verbose = 1;
+	/* 解析bd索引标志，显示相应bd的l2fib详情 */
+    else if (unformat (input, "bd_index %d", &ctx.bd_index))
+	  ctx.verbose = 1;
+	/* 显示学习到的l2fib */
+    else if (unformat (input, "learn"))
 	{
 	  ctx.add = 0;
 	  ctx.learn = 1;
 	  ctx.verbose = 1;
 	}
-      else if (unformat (input, "add"))
+	/* 显示手动add的l2fib	*/
+    else if (unformat (input, "add"))
 	{
 	  ctx.learn = 0;
 	  ctx.add = 1;
 	  ctx.verbose = 1;
 	}
-      else if (unformat (input, "bd_id %d", &bd_id))
+	/* 解析bd id标志，显示相应bd的l2fib详情 */
+    else if (unformat (input, "bd_id %d", &bd_id))
 	{
+	  /* 根据bd id查找bd index */
 	  uword *p = hash_get (bdm->bd_index_by_bd_id, bd_id);
 	  if (p)
-	    {
-	      ctx.verbose = 1;
-	      ctx.bd_index = p[0];
-	    }
+	  {
+	    ctx.verbose = 1;
+	    ctx.bd_index = p[0];
+	  }
 	  else
 	    return clib_error_return (0,
 				      "bridge domain id %d doesn't exist\n",
 				      bd_id);
 	}
-      else
-	break;
-    }
+    else
+	  break;
+  }
 
+  /* 遍历mac table */
   BV (clib_bihash_foreach_key_value_pair)
     (&msm->mac_table, l2fib_show_walk_cb, &ctx);
 
+  /* 没有记录 */
   if (ctx.total_entries == 0)
     vlib_cli_output (vm, "no l2fib entries");
+  /* 有记录 */
   else
-    {
-      l2learn_main_t *lm = &l2learn_main;
-      vlib_cli_output (vm, "L2FIB total/learned entries: %d/%d  "
-		       "Last scan time: %.4esec  Learn limit: %d ",
-		       ctx.total_entries, lm->global_learn_count,
-		       msm->age_scan_duration, lm->global_learn_limit);
-      if (lm->client_pid)
-	vlib_cli_output (vm, "L2MAC events client PID: %d  "
-			 "Last e-scan time: %.4esec  Delay: %.2esec  "
-			 "Max macs in event: %d",
-			 lm->client_pid, msm->evt_scan_duration,
-			 msm->event_scan_delay, msm->max_macs_in_event);
-    }
+  {
+    l2learn_main_t *lm = &l2learn_main;
+	/* 显示学习到的记录和总记录数，以及上次老化检查的时间 */
+    vlib_cli_output (vm, "L2FIB total/learned entries: %d/%d  "
+		                 "Last scan time: %.4esec  Learn limit: %d ",
+		                 ctx.total_entries, lm->global_learn_count,
+		                 msm->age_scan_duration, lm->global_learn_limit);
+    /* 显示等待mac学习和老化事件的客户端信息 */
+    if (lm->client_pid)
+	  vlib_cli_output (vm, "L2MAC events client PID: %d  "
+			               "Last e-scan time: %.4esec  Delay: %.2esec  "
+			               "Max macs in event: %d",
+			               lm->client_pid, msm->evt_scan_duration,
+			               msm->event_scan_delay, msm->max_macs_in_event);
+  }
 
+  /* 显示原始hash表信息 */
   if (raw)
     vlib_cli_output (vm, "Raw Hash Table:\n%U\n",
 		     BV (format_bihash), &msm->mac_table, 1 /* verbose */ );
