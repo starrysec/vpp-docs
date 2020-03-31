@@ -229,7 +229,7 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
    *   set tx sw-if-handle
    */
 
-  /* feature掩码 */
+  /* 针对此数据包的feature掩码 */
   u32 feat_mask = ~0;
   u32 sw_if_index0 = vnet_buffer (b0)->sw_if_index[VLIB_RX];
   ethernet_header_t *h0 = vlib_buffer_get_current (b0);
@@ -238,6 +238,8 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
   l2_input_config_t *config = vec_elt_at_index (msm->configs, sw_if_index0);
 
   /* Save split horizon group */
+  /* 水平分割（split horizon）是指，从一端收到的路由信息，不能再从原路被发送回去。为了路由环路。 */
+  /* 根据接口配置，设置水平分隔组号（0关闭，非0位组号） */
   vnet_buffer (b0)->l2.shg = config->shg;
 
   /* determine layer2 kind for stat and mask */
@@ -255,36 +257,49 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
       u8 protocol = ((ip6_header_t *) l3h0)->protocol;
 
       /* Disable bridge forwarding (flooding will execute instead if not xconnect) */
-      feat_mask &= ~(L2INPUT_FEAT_FWD |
-             L2INPUT_FEAT_UU_FLOOD |
-             L2INPUT_FEAT_UU_FWD | L2INPUT_FEAT_GBP_FWD);
+      /* 
+       * L2INPUT_FEAT_FWD: Forwarding
+       * L2INPUT_FEAT_UU_FWD: Unknown Unicast Forwarding
+       * L2INPUT_FEAT_UU_FLOOD: Unknown Unicast Flooding
+       * L2INPUT_FEAT_GBP_FWD: GBP Forwarding
+       * 初始feature掩码：禁用转发forwarding（但未关闭洪范flooding）
+       */
+      feat_mask &= ~(L2INPUT_FEAT_FWD | L2INPUT_FEAT_UU_FLOOD | L2INPUT_FEAT_UU_FWD | L2INPUT_FEAT_GBP_FWD);
 
+      /* 不是arp包，则禁用ARP Unicast Forwarding */
       if (ethertype != ETHERNET_TYPE_ARP)
         feat_mask &= ~(L2INPUT_FEAT_ARP_UFWD);
 
       /* Disable ARP-term for non-ARP and non-ICMP6 packet */
-      if (ethertype != ETHERNET_TYPE_ARP &&
-      (ethertype != ETHERNET_TYPE_IP6 || protocol != IP_PROTOCOL_ICMP6))
+      /* 不是arp包，且不是icmpv6，则禁用ARP-termination来避免洪范arp请求 */
+      if (ethertype != ETHERNET_TYPE_ARP && (ethertype != ETHERNET_TYPE_IP6 || protocol != IP_PROTOCOL_ICMP6))
         feat_mask &= ~(L2INPUT_FEAT_ARP_TERM);
       /*
        * For packet from BVI - set SHG of ARP request or ICMPv6 neighbor
        * solicitation packet from BVI to 0 so it can also flood to VXLAN
        * tunnels or other ports with the same SHG as that of the BVI.
        */
+      /* 如果数据包出口接口是bvi接口 */
       else if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] == L2INPUT_BVI))
       {
+        /* arp包 */
         if (ethertype == ETHERNET_TYPE_ARP)
         {
+          /* arp头 */
           ethernet_arp_header_t *arp0 = (ethernet_arp_header_t *) l3h0;
-          if (arp0->opcode ==
-          clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_request))
-        vnet_buffer (b0)->l2.shg = 0;
+          /* 是arp请求，则关闭水平分隔，可以继续洪范到vxlan等隧道 */
+          if (arp0->opcode == clib_host_to_net_u16 (ETHERNET_ARP_OPCODE_request))
+            vnet_buffer (b0)->l2.shg = 0;
         }
+        /* icmpv6包 */
         else            /* must be ICMPv6 */
         {
+          /* ipv6头 */
           ip6_header_t *iph0 = (ip6_header_t *) l3h0;
+          /* nd头 */
           icmp6_neighbor_solicitation_or_advertisement_header_t *ndh0;
           ndh0 = ip6_next_header (iph0);
+          /* 是邻居请求，则关闭水平分隔，可以继续洪范到vxlan等隧道 */
           if (ndh0->icmp.type == ICMP6_neighbor_solicitation)
             vnet_buffer (b0)->l2.shg = 0;
         }
@@ -298,11 +313,12 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
        * is not dropped on output to VXLAN tunnels or other ports with the
        * same SHG as that of the BVI.
        */
+      /* 数据包出口接口是bvi接口，则关闭水平分隔，可以继续洪范到vxlan等隧道 */
       if (PREDICT_FALSE (vnet_buffer (b0)->sw_if_index[VLIB_TX] == L2INPUT_BVI))
         vnet_buffer (b0)->l2.shg = 0;
   }
 
-
+  /* 配置了网桥 */
   if (config->bridge)
   {
       /* Do bridge-domain processing */
@@ -331,13 +347,17 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
        * bridge domain config. In the bd_bitmap, bits for features other
        * than learning/flooding/forwarding should always be set.
        */
+      /* 数据包处理feature掩码增加网桥feature掩码 */
       feat_mask = feat_mask & bd_config->feature_bitmap;
   }
+  /* 配置了xconnect */
   else if (config->xconnect)
   {
       /* Set the output interface */
+      /* 是xconnect，则数据包输出接口设置为xconnect设置的输出接口 */
       vnet_buffer (b0)->sw_if_index[VLIB_TX] = config->output_sw_if_index;
   }
+  /* L3模式，错误，丢弃 */
   else
       feat_mask = L2INPUT_FEAT_DROP;
 
@@ -348,6 +368,7 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
   vnet_buffer (b0)->l2.feature_bitmap = feature_bitmap;
 
   /* Determine the next node */
+  /* 返回处理收个feature的节点 */
   *next0 = feat_bitmap_get_next_node_index (msm->feat_next_node_index,
                         feature_bitmap);
 }
