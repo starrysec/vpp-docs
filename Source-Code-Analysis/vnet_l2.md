@@ -742,65 +742,76 @@ l2fib_mac_age_scanner_process (vlib_main_t * vm, vlib_node_runtime_t * rt,
   f64 start_time, next_age_scan_time = CLIB_TIME_MAX;
 
   while (1)
-    {
-      if (lm->client_pid)
-	vlib_process_wait_for_event_or_clock (vm, fm->event_scan_delay);
-      else if (enabled)
+  {
+    /* 有客户端等待事件，则等待事件到来或者超时到来 */
+    if (lm->client_pid)
+		vlib_process_wait_for_event_or_clock (vm, fm->event_scan_delay);
+    /* 正在扫描，等待事件到来或者超时（到下次扫描时间的时间间隔）到来 */
+    else if (enabled)
 	{
 	  f64 t = next_age_scan_time - vlib_time_now (vm);
 	  vlib_process_wait_for_event_or_clock (vm, t);
 	}
-      else
-	vlib_process_wait_for_event (vm);
+	/* 其他情况，等待事件到来 */
+    else
+		vlib_process_wait_for_event (vm);
 
-      event_type = vlib_process_get_events (vm, &event_data);
-      vec_reset_length (event_data);
+    /* 事件到来，获取事件类型 */
+    event_type = vlib_process_get_events (vm, &event_data);
+    vec_reset_length (event_data);
 
-      start_time = vlib_time_now (vm);
-      enum
-      { SCAN_MAC_AGE, SCAN_MAC_EVENT, SCAN_DISABLE } scan = SCAN_MAC_AGE;
+    start_time = vlib_time_now (vm);
+    enum { SCAN_MAC_AGE, SCAN_MAC_EVENT, SCAN_DISABLE } scan = SCAN_MAC_AGE;
 
-      switch (event_type)
+    switch (event_type)
 	{
-	case ~0:		/* timer expired */
-	  if (lm->client_pid != 0 && start_time < next_age_scan_time)
-	    scan = SCAN_MAC_EVENT;
-	  break;
+		/* 超时 */
+		case ~0:		/* timer expired */
+		  /* 有客户端连接，执行事件扫描 */
+		  if (lm->client_pid != 0 && start_time < next_age_scan_time)
+			scan = SCAN_MAC_EVENT;
+		  break;
+		
+		/* 开始扫描 */
+		case L2_MAC_AGE_PROCESS_EVENT_START:
+		  enabled = 1;
+		  break;
+		
+		/* 停止扫描 */
+		case L2_MAC_AGE_PROCESS_EVENT_STOP:
+		  enabled = 0;
+		  scan = SCAN_DISABLE;
+		  break;
+		
+		/* 过一次 */
+		case L2_MAC_AGE_PROCESS_EVENT_ONE_PASS:
+		  break;
 
-	case L2_MAC_AGE_PROCESS_EVENT_START:
-	  enabled = 1;
-	  break;
-
-	case L2_MAC_AGE_PROCESS_EVENT_STOP:
-	  enabled = 0;
-	  scan = SCAN_DISABLE;
-	  break;
-
-	case L2_MAC_AGE_PROCESS_EVENT_ONE_PASS:
-	  break;
-
-	default:
-	  ASSERT (0);
+		default:
+		  ASSERT (0);
 	}
 
-      if (scan == SCAN_MAC_EVENT)
-	l2fib_main.evt_scan_duration = l2fib_scan (vm, start_time, 1);
-      else
+    if (scan == SCAN_MAC_EVENT)
+	    /* 时间扫描 */
+		l2fib_main.evt_scan_duration = l2fib_scan (vm, start_time, 1);
+    else
 	{
+	  /* 老化扫描 */
 	  if (scan == SCAN_MAC_AGE)
 	    l2fib_main.age_scan_duration = l2fib_scan (vm, start_time, 0);
+	  /* 扫描禁用 */
 	  if (scan == SCAN_DISABLE)
-	    {
-	      l2fib_main.age_scan_duration = 0;
-	      l2fib_main.evt_scan_duration = 0;
-	    }
+	  {
+	    l2fib_main.age_scan_duration = 0;
+	    l2fib_main.evt_scan_duration = 0;
+	  }
 	  /* schedule next scan */
 	  if (enabled)
 	    next_age_scan_time = start_time + L2FIB_AGE_SCAN_INTERVAL;
 	  else
 	    next_age_scan_time = CLIB_TIME_MAX;
 	}
-    }
+  }
   return 0;
 }
 
