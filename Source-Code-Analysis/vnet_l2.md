@@ -368,7 +368,7 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
   vnet_buffer (b0)->l2.feature_bitmap = feature_bitmap;
 
   /* Determine the next node */
-  /* 返回处理收个feature的节点 */
+  /* 返回处理首个feature的节点 */
   *next0 = feat_bitmap_get_next_node_index (msm->feat_next_node_index,
                         feature_bitmap);
 }
