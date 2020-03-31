@@ -837,9 +837,12 @@ l2fib_scan (vlib_main_t * vm, f64 start_time, u8 event_only)
   if (alloc_arena (h) == 0)
     return 0.0;
 
+  /* 有客户端 */
   if (client)
   {
+    /* 申请api mac event缓冲区 */
     mp = allocate_mac_evt_buf (client, cl_idx);
+	/* 注册api客户端 */
     reg = vl_api_client_index_to_registration (lm->client_index);
   }
 
@@ -914,6 +917,7 @@ l2fib_scan (vlib_main_t * vm, f64 start_time, u8 event_only)
 			  : (vl_api_mac_event_action_t) MAC_EVENT_ACTION_ADD;
 		    mp->mac[evt_idx].action = htonl (mp->mac[evt_idx].action);
 		    mp->mac[evt_idx].sw_if_index = htonl (result.fields.sw_if_index);
+			
 		    /* clear event bits and update mac entry */
 		    l2fib_entry_result_clear_LRN_EVT (&result);
 		    l2fib_entry_result_clear_LRN_MOV (&result);
@@ -947,7 +951,7 @@ l2fib_scan (vlib_main_t * vm, f64 start_time, u8 event_only)
 	    if (delta < bd_config->mac_age)
 		  continue;	/* still valid */
 
-	    age_out:
+	age_out:
 	    if (client)
 		{
 		  /* copy mac entry to event msg */
@@ -972,8 +976,8 @@ l2fib_scan (vlib_main_t * vm, f64 start_time, u8 event_only)
 	  v++;
 	}
     doublebreak:
-      ;
-    }
+    ;
+  }
 
   /* keep learn count consistent */
   l2learn_main.global_learn_count = learn_count;
