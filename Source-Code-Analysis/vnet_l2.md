@@ -2,7 +2,7 @@
 
 ### 处理
 
-### vnet/l2/l2_input.c
+#### vnet/l2/l2_input.c
 
 ```
 VLIB_REGISTER_NODE (l2input_node) = {
@@ -375,4 +375,240 @@ classify_and_dispatch (l2input_main_t * msm, vlib_buffer_t * b0, u32 * next0)
 ```
 ### 配置
 
-### vnet/l2/l2_bd.c
+#### vnet/l2/l2_bd.c
+
+#### vnet/l2/l2_fib.c
+
+**添加**
+```
+VLIB_CLI_COMMAND (l2fib_add_cli, static) = {
+  .path = "l2fib add",
+  .short_help = "l2fib add <mac> <bridge-domain-id> filter | <intf> [static | bvi]",
+  .function = l2fib_add,
+};
+
+/**
+ * Add an entry to the L2FIB.
+ * The CLI format is:
+ *    l2fib add <mac> <bd> <intf> [static] [bvi]
+ *    l2fib add <mac> <bd> filter
+ * Note that filter and bvi entries are always static
+ */
+static clib_error_t *
+l2fib_add (vlib_main_t * vm,
+	   unformat_input_t * input, vlib_cli_command_t * cmd)
+{
+  bd_main_t *bdm = &bd_main;
+  vnet_main_t *vnm = vnet_get_main ();
+  clib_error_t *error = 0;
+  u8 mac[6];
+  u32 bd_id;
+  u32 bd_index;
+  u32 sw_if_index = ~0;
+  uword *p;
+  l2fib_entry_result_flags_t flags;
+
+  /* L2 fib entry's flag */
+  flags = L2FIB_ENTRY_RESULT_FLAG_NONE;
+
+  /* 解析mac地址 */
+  if (!unformat (input, "%U", unformat_ethernet_address, mac))
+  {
+    error = clib_error_return (0, "expected mac address `%U'", format_unformat_error, input);
+    goto done;
+  }
+
+  /* 解析bd id */
+  if (!unformat (input, "%d", &bd_id))
+  {
+    error = clib_error_return (0, "expected bridge domain ID `%U'", format_unformat_error, input);
+    goto done;
+  }
+
+  /* 根据bd id查找bd索引 */
+  p = hash_get (bdm->bd_index_by_bd_id, bd_id);
+  if (!p)
+  {
+    error = clib_error_return (0, "bridge domain ID %d invalid", bd_id);
+    goto done;
+  }
+  bd_index = p[0];
+
+  /* 解析filter */
+  if (unformat (input, "filter"))
+  {
+    /* filter添加到l2fib filter entry中 */
+    l2fib_add_filter_entry (mac, bd_index);
+    return 0;
+  }
+
+  /* 解析interface */
+  if (!unformat_user (input, unformat_vnet_sw_interface, vnm, &sw_if_index))
+  {
+    error = clib_error_return (0, "unknown interface `%U'", format_unformat_error, input);
+    goto done;
+  }
+
+  /* 静态mac */
+  if (unformat (input, "static"))
+    flags |= L2FIB_ENTRY_RESULT_FLAG_STATIC;
+  /* mac是bvi接口的 */
+  else if (unformat (input, "bvi"))
+    flags |= (L2FIB_ENTRY_RESULT_FLAG_STATIC | L2FIB_ENTRY_RESULT_FLAG_BVI);
+
+  /* 检查L2模式 */
+  if (vec_len (l2input_main.configs) <= sw_if_index)
+  {
+    error = clib_error_return (0, "Interface sw_if_index %d not in L2 mode", sw_if_index);
+    goto done;
+  }
+
+  /* 记录添加到l2fib中, (mac, bd_index)=>(sw_if_index, flags) */
+  l2fib_add_entry (mac, bd_index, sw_if_index, flags);
+
+done:
+  return error;
+}
+
+/**
+ * Add an entry to the l2fib.
+ * If the entry already exists then overwrite it
+ */
+void
+l2fib_add_entry (const u8 * mac, u32 bd_index,
+		 u32 sw_if_index, l2fib_entry_result_flags_t flags)
+{
+  /* l2fib记录key */
+  l2fib_entry_key_t key;
+  
+  l2fib_entry_result_t result;
+  __attribute__ ((unused)) u32 bucket_contents;
+  l2fib_main_t *fm = &l2fib_main;
+  l2learn_main_t *lm = &l2learn_main;
+  /* 创建bihash kv */
+  BVT (clib_bihash_kv) kv;
+
+  /* set up key, key由mac和bd_index构成 */
+  key.raw = l2fib_make_key (mac, bd_index);
+  /* 给kv赋key */
+  kv.key = key.raw;
+
+  /* check if entry already exist */
+  if (BV (clib_bihash_search) (&fm->mac_table, &kv, &kv))
+  {
+    /* decrement counter if overwriting a learned mac  */
+    result.raw = kv.value;
+	/* 查找到的记录是dynamic的（允许老化），则重新覆盖该记录，同时由于是覆盖所以不占用计数（后期添加后scan会计数+1），计数减1 */
+    if ((!l2fib_entry_result_is_set_AGE_NOT (&result)) && (lm->global_learn_count))
+		lm->global_learn_count--;
+  }
+
+  /* set up result */
+  result.raw = 0;		/* clear all fields */
+  /* raw和fields是联合体 */
+  result.fields.sw_if_index = sw_if_index;
+  result.fields.flags = flags;
+
+  /* no aging for provisioned entry */
+  /* 设置记录static（永不老化） */
+  l2fib_entry_result_set_AGE_NOT (&result);
+
+  /* 给kv赋value */
+  kv.value = result.raw;
+
+  /* kv加入mac table */
+  BV (clib_bihash_add_del) (&fm->mac_table, &kv, 1 /* is_add */ );
+}
+```
+
+**删除**
+```
+VLIB_CLI_COMMAND (l2fib_del_cli, static) = {
+  .path = "l2fib del",
+  .short_help = "l2fib del <mac> <bridge-domain-id> []",
+  .function = l2fib_del,
+};
+
+/**
+ * Delete an entry from the L2FIB.
+ * The CLI format is:
+ *    l2fib del <mac> <bd-id>
+ */
+static clib_error_t *
+l2fib_del (vlib_main_t * vm,
+	   unformat_input_t * input, vlib_cli_command_t * cmd)
+{
+  bd_main_t *bdm = &bd_main;
+  clib_error_t *error = 0;
+  u8 mac[6];
+  u32 bd_id;
+  u32 bd_index;
+  uword *p;
+
+  /* 解析mac地址 */
+  if (!unformat (input, "%U", unformat_ethernet_address, mac))
+  {
+    error = clib_error_return (0, "expected mac address `%U'", format_unformat_error, input);
+    goto done;
+  }
+
+  /* 解析bd id */
+  if (!unformat (input, "%d", &bd_id))
+  {
+    error = clib_error_return (0, "expected bridge domain ID `%U'", format_unformat_error, input);
+    goto done;
+  }
+
+  /* 根据bd id查找bd索引 */
+  p = hash_get (bdm->bd_index_by_bd_id, bd_id);
+  if (!p)
+  {
+    error = clib_error_return (0, "bridge domain ID %d invalid", bd_id);
+    goto done;
+  }
+  bd_index = p[0];
+
+  /* 从l2fib中删除记录 */
+  if (l2fib_del_entry (mac, bd_index, 0))
+  {
+    error = clib_error_return (0, "mac entry not found");
+    goto done;
+  }
+
+done:
+  return error;
+}
+
+/**
+ * Delete an entry from the l2fib.
+ * Return 0 if the entry was deleted, or 1 it was not found or if
+ * sw_if_index is non-zero and does not match that in the entry.
+ */
+u32
+l2fib_del_entry (const u8 * mac, u32 bd_index, u32 sw_if_index)
+{
+  l2fib_entry_result_t result;
+  l2fib_main_t *mp = &l2fib_main;
+  BVT (clib_bihash_kv) kv;
+
+  /* set up key */
+  kv.key = l2fib_make_key (mac, bd_index);
+
+  if (BV (clib_bihash_search) (&mp->mac_table, &kv, &kv))
+    return 1;
+
+  result.raw = kv.value;
+
+  /*  check if sw_if_index of entry match */
+  if ((sw_if_index != 0) && (sw_if_index != result.fields.sw_if_index))
+    return 1;
+
+  /* decrement counter if dynamically learned mac */
+  if ((!l2fib_entry_result_is_set_AGE_NOT (&result)) && (l2learn_main.global_learn_count))
+    l2learn_main.global_learn_count--;
+
+  /* Remove entry from hash table */
+  BV (clib_bihash_add_del) (&mp->mac_table, &kv, 0 /* is_add */ );
+  return 0;
+}
+```
