@@ -3,6 +3,7 @@
 ### 配置
 
 #### plugins/flowprobe/flowprobe.c
+flowprobe配置命令：
 ```
 VLIB_CLI_COMMAND (flowprobe_enable_disable_command, static) = {
     .path = "flowprobe feature add-del",
@@ -75,6 +76,7 @@ VLIB_REGISTER_NODE (flowprobe_walker_node) = {
 /* *INDENT-ON* */
 ```
 
+flowprobe数据包处理函数：
 ```
 uword
 flowprobe_node_fn (vlib_main_t * vm,
@@ -234,88 +236,7 @@ flowprobe_node_fn (vlib_main_t * vm,
 }
 ```
 
-```
-/* Per worker process processing the active/passive expired entries */
-static uword
-flowprobe_walker_process (vlib_main_t * vm,
-			  vlib_node_runtime_t * rt, vlib_frame_t * f)
-{
-  flowprobe_main_t *fm = &flowprobe_main;
-  flow_report_main_t *frm = &flow_report_main;
-  flowprobe_entry_t *e;
-
-  /*
-   * $$$$ Remove this check from here and track FRM status and disable
-   * this process if required.
-   */
-  if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
-    {
-      fm->disabled = true;
-      return 0;
-    }
-  fm->disabled = false;
-
-  u32 cpu_index = os_get_thread_index ();
-  u32 *to_be_removed = 0, *i;
-
-  /*
-   * Tick the timer when required and process the vector of expired
-   * timers
-   */
-  f64 start_time = vlib_time_now (vm);
-  u32 count = 0;
-
-  tw_timer_expire_timers_2t_1w_2048sl (fm->timers_per_worker[cpu_index],
-				       start_time);
-
-  vec_foreach (i, fm->expired_passive_per_worker[cpu_index])
-  {
-    u32 exported = 0;
-    f64 now = vlib_time_now (vm);
-    if (now > start_time + 100e-6
-	|| exported > FLOW_MAXIMUM_EXPORT_ENTRIES - 1)
-      break;
-
-    if (pool_is_free_index (fm->pool_per_worker[cpu_index], *i))
-      {
-	clib_warning ("Element is %d is freed already\n", *i);
-	continue;
-      }
-    else
-      e = pool_elt_at_index (fm->pool_per_worker[cpu_index], *i);
-
-    /* Check last update timestamp. If it is longer than passive time nuke
-     * entry. Otherwise restart timer with what's left
-     * Premature passive timer by more than 10%
-     */
-    if ((now - e->last_updated) < (u64) (fm->passive_timer * 0.9))
-      {
-	u64 delta = fm->passive_timer - (now - e->last_updated);
-	e->passive_timer_handle = tw_timer_start_2t_1w_2048sl
-	  (fm->timers_per_worker[cpu_index], *i, 0, delta);
-      }
-    else			/* Nuke entry */
-      {
-	vec_add1 (to_be_removed, *i);
-      }
-    /* If anything to report send it to the exporter */
-    if (e->packetcount && now > e->last_exported + fm->active_timer)
-      {
-	exported++;
-	flowprobe_export_entry (vm, e);
-      }
-    count++;
-  }
-  if (count)
-    vec_delete (fm->expired_passive_per_worker[cpu_index], count, 0);
-
-  vec_foreach (i, to_be_removed) flowprobe_delete_by_index (cpu_index, *i);
-  vec_free (to_be_removed);
-
-  return 0;
-}
-```
-
+提取各层头部信息，构造flowprobe_entry_t：
 ```
 static inline void
 add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
@@ -531,6 +452,7 @@ add_to_flow_record_state (vlib_main_t * vm, vlib_node_runtime_t * node,
 }
 ```
 
+flowprobe_entry_t转化为数据包data set：
 ```
 static void
 flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
@@ -602,6 +524,7 @@ flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
 }
 ```
 
+构造ipfix头，加上data set，发送：
 ```
 static void
 flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
@@ -718,5 +641,87 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
   fm->context[which].buffers_per_worker[my_cpu_number] = 0;
   fm->context[which].next_record_offset_per_worker[my_cpu_number] =
     flowprobe_get_headersize ();
+}
+```
+
+```
+/* Per worker process processing the active/passive expired entries */
+static uword
+flowprobe_walker_process (vlib_main_t * vm,
+			  vlib_node_runtime_t * rt, vlib_frame_t * f)
+{
+  flowprobe_main_t *fm = &flowprobe_main;
+  flow_report_main_t *frm = &flow_report_main;
+  flowprobe_entry_t *e;
+
+  /*
+   * $$$$ Remove this check from here and track FRM status and disable
+   * this process if required.
+   */
+  if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
+    {
+      fm->disabled = true;
+      return 0;
+    }
+  fm->disabled = false;
+
+  u32 cpu_index = os_get_thread_index ();
+  u32 *to_be_removed = 0, *i;
+
+  /*
+   * Tick the timer when required and process the vector of expired
+   * timers
+   */
+  f64 start_time = vlib_time_now (vm);
+  u32 count = 0;
+
+  tw_timer_expire_timers_2t_1w_2048sl (fm->timers_per_worker[cpu_index],
+				       start_time);
+
+  vec_foreach (i, fm->expired_passive_per_worker[cpu_index])
+  {
+    u32 exported = 0;
+    f64 now = vlib_time_now (vm);
+    if (now > start_time + 100e-6
+	|| exported > FLOW_MAXIMUM_EXPORT_ENTRIES - 1)
+      break;
+
+    if (pool_is_free_index (fm->pool_per_worker[cpu_index], *i))
+      {
+	clib_warning ("Element is %d is freed already\n", *i);
+	continue;
+      }
+    else
+      e = pool_elt_at_index (fm->pool_per_worker[cpu_index], *i);
+
+    /* Check last update timestamp. If it is longer than passive time nuke
+     * entry. Otherwise restart timer with what's left
+     * Premature passive timer by more than 10%
+     */
+    if ((now - e->last_updated) < (u64) (fm->passive_timer * 0.9))
+      {
+	u64 delta = fm->passive_timer - (now - e->last_updated);
+	e->passive_timer_handle = tw_timer_start_2t_1w_2048sl
+	  (fm->timers_per_worker[cpu_index], *i, 0, delta);
+      }
+    else			/* Nuke entry */
+      {
+	vec_add1 (to_be_removed, *i);
+      }
+    /* If anything to report send it to the exporter */
+    if (e->packetcount && now > e->last_exported + fm->active_timer)
+      {
+	exported++;
+	flowprobe_export_entry (vm, e);
+      }
+    count++;
+  }
+  if (count)
+    vec_delete (fm->expired_passive_per_worker[cpu_index], count, 0);
+
+  vec_foreach (i, to_be_removed) flowprobe_delete_by_index (cpu_index, *i);
+  vec_free (to_be_removed);
+
+  return 0;
 }
 ```
