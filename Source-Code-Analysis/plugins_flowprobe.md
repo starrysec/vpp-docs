@@ -33,7 +33,6 @@ VLIB_CLI_COMMAND (flowprobe_show_stats_command, static) = {
 
 #### plugins/flowprobe/node.c
 ```
-/* *INDENT-OFF* */
 VLIB_REGISTER_NODE (flowprobe_ip4_node) = {
   .function = flowprobe_ip4_node_fn,
   .name = "flowprobe-ip4",
@@ -67,13 +66,6 @@ VLIB_REGISTER_NODE (flowprobe_l2_node) = {
   .n_next_nodes = FLOWPROBE_N_NEXT,
   .next_nodes = FLOWPROBE_NEXT_NODES,
 };
-VLIB_REGISTER_NODE (flowprobe_walker_node) = {
-  .function = flowprobe_walker_process,
-  .name = "flowprobe-walker",
-  .type = VLIB_NODE_TYPE_INPUT,
-  .state = VLIB_NODE_STATE_INTERRUPT,
-};
-/* *INDENT-ON* */
 ```
 
 flowprobe数据包处理函数：
@@ -642,6 +634,19 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
   fm->context[which].next_record_offset_per_worker[my_cpu_number] =
     flowprobe_get_headersize ();
 }
+```
+
+### 过期
+
+#### plugins/flowprobe/flowprobe.c
+
+```
+VLIB_REGISTER_NODE (flowprobe_walker_node) = {
+  .function = flowprobe_walker_process,
+  .name = "flowprobe-walker",
+  .type = VLIB_NODE_TYPE_INPUT,
+  .state = VLIB_NODE_STATE_INTERRUPT,
+};
 ```
 
 ```
