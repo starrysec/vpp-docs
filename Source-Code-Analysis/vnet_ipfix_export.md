@@ -4,7 +4,7 @@
 
 #### vnet/ipfix-export/flow_report.c
 
-配置exporter：
+配置exporter，使能flow reporting process。
 ```
 VLIB_CLI_COMMAND (set_ipfix_exporter_command, static) = {
     .path = "set ipfix exporter",
@@ -106,3 +106,4 @@ set_ipfix_exporter_command_fn (vlib_main_t * vm,
   return 0;
 }
 ```
+
