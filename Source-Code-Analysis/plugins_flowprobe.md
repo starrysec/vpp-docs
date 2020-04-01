@@ -1,4 +1,5 @@
 ## flowprobe
+flowprobe结合ipfix-export完成ipfix输出，其中ipfix-export输出tempalte数据包，flowprobe输出data数据包。
 
 ### 配置
 
@@ -516,7 +517,7 @@ flowprobe_export_entry (vlib_main_t * vm, flowprobe_entry_t * e)
 }
 ```
 
-构造ipfix头，加上data set，发送：
+构造ipfix头，加上上面的data set，形成data数据包发送：
 ```
 static void
 flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,

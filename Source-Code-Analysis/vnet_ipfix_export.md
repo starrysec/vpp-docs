@@ -133,6 +133,7 @@ ipfix_flush_command_fn (vlib_main_t * vm,
 
 #### vnet/ipfix-export/flow_report.c
 
+flow report流程：
 ```
 VLIB_REGISTER_NODE (flow_report_process_node) = {
     .function = flow_report_process,
@@ -189,9 +190,9 @@ flow_report_process (vlib_main_t * vm,
 		template_bi = ~0;
 		rv = 0;
 
-		// 时间间隔到了，构造template数据包
+		// 时间间隔到了
 		if (send_template)
-		    // 返回template数据包索引
+		    // 构造template rewrite字符串，返回template数据包索引
 			rv = send_template_packet (frm, fr, &template_bi);
 
         // 构造template失败
@@ -213,7 +214,7 @@ flow_report_process (vlib_main_t * vm,
 			nf->n_vectors++;
 		}
         
-        // 回调其他模块注册的数据刷新插件，用于构造data set数据。
+        // 回调其他模块注册的数据刷新插件，构造ipfix头，加上上面构造的template rewrite字符串，形成template数据包发送。
         // 可用的data callback有：
         // 1.flowprobe中的flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2
         // 2.ipfix-export中的ipfix_classify_send_flows
@@ -226,7 +227,10 @@ flow_report_process (vlib_main_t * vm,
 
   return 0;			/* not so much */
 }
+```
 
+构造template rewrite字符串：
+```
 int
 send_template_packet (flow_report_main_t * frm,
 		      flow_report_t * fr, u32 * buffer_indexp)
