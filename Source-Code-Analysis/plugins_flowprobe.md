@@ -1,5 +1,4 @@
 ## flowprobe
-```注意：flowprobe生成并发送ipfix data, ipfix-export生成并发送ipfix template-data```
 
 ### 配置
 
