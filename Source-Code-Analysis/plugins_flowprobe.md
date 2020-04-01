@@ -666,6 +666,7 @@ flowprobe_walker_process (vlib_main_t * vm,
    * $$$$ Remove this check from here and track FRM status and disable
    * this process if required.
    */
+  // ipfix collector ip或者ipfix src ip不存在，则disable flowprobe
   if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
   {
       fm->disabled = true;
@@ -683,8 +684,7 @@ flowprobe_walker_process (vlib_main_t * vm,
   f64 start_time = vlib_time_now (vm);
   u32 count = 0;
 
-  tw_timer_expire_timers_2t_1w_2048sl (fm->timers_per_worker[cpu_index],
-				       start_time);
+  tw_timer_expire_timers_2t_1w_2048sl (fm->timers_per_worker[cpu_index], start_time);
 
   vec_foreach (i, fm->expired_passive_per_worker[cpu_index])
   {
@@ -708,6 +708,7 @@ flowprobe_walker_process (vlib_main_t * vm,
     if ((now - e->last_updated) < (u64) (fm->passive_timer * 0.9))
     {
 	  u64 delta = fm->passive_timer - (now - e->last_updated);
+      // 启动定时器，间隔delta，2timers-1wheel-2048slots
 	  e->passive_timer_handle = tw_timer_start_2t_1w_2048sl(fm->timers_per_worker[cpu_index], *i, 0, delta);
     }
     else			/* Nuke entry */
