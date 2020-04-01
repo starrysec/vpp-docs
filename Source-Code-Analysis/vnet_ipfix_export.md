@@ -213,10 +213,10 @@ flow_report_process (vlib_main_t * vm,
 			nf->n_vectors++;
 		}
         
-		// 回调其他模块注册的数据刷新插件，用于构造data set数据。
+        // 回调其他模块注册的数据刷新插件，用于构造data set数据。
         // 可用的data callback有：
-		// 1.flowprobe中的flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2刷新数据flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2
-		// 2.ipfix-export中的ipfix_classify_send_flows
+        // 1.flowprobe中的flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2
+        // 2.ipfix-export中的ipfix_classify_send_flows
 		nf = fr->flow_data_callback (frm, fr, nf, to_next, ip4_lookup_node_index);
 		// 把frame传给下个节点：ip4-lookup，最后发送出去
 		if (nf)
@@ -264,9 +264,9 @@ send_template_packet (flow_report_main_t * frm,
   if (fr->update_rewrite)
   {
     // 调用其他模块注册的rewrite回调函数：
-	// 可用的rewrite_callback有：
-	// 1.flowprobe中的flowprobe_template_rewrite_l2，flowprobe_template_rewrite_ip4，flowprobe_template_rewrite_ip6
-	// 2.ipfix-export中的ipfix_classify_template_rewrite
+    // 可用的rewrite_callback有：
+    // 1.flowprobe中的flowprobe_template_rewrite_l2，flowprobe_template_rewrite_ip4，flowprobe_template_rewrite_ip6
+    // 2.ipfix-export中的ipfix_classify_template_rewrite
     // 这里的rewrite字符串为ipfix中的template data，即除了ipfix头16字节外的数据。
 	fr->rewrite = fr->rewrite_callback (frm, fr,
 					  &frm->ipfix_collector,
