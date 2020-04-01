@@ -641,6 +641,8 @@ flowprobe_export_send (vlib_main_t * vm, vlib_buffer_t * b0,
 
 #### plugins/flowprobe/flowprobe.c
 
+active和passive时间的作用：？
+
 ```
 VLIB_REGISTER_NODE (flowprobe_walker_node) = {
   .function = flowprobe_walker_process,
@@ -665,10 +667,10 @@ flowprobe_walker_process (vlib_main_t * vm,
    * this process if required.
    */
   if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
-    {
+  {
       fm->disabled = true;
       return 0;
-    }
+  }
   fm->disabled = false;
 
   u32 cpu_index = os_get_thread_index ();
@@ -688,15 +690,14 @@ flowprobe_walker_process (vlib_main_t * vm,
   {
     u32 exported = 0;
     f64 now = vlib_time_now (vm);
-    if (now > start_time + 100e-6
-	|| exported > FLOW_MAXIMUM_EXPORT_ENTRIES - 1)
+    if (now > start_time + 100e-6 || exported > FLOW_MAXIMUM_EXPORT_ENTRIES - 1)
       break;
 
     if (pool_is_free_index (fm->pool_per_worker[cpu_index], *i))
-      {
-	clib_warning ("Element is %d is freed already\n", *i);
-	continue;
-      }
+    {
+	  clib_warning ("Element is %d is freed already\n", *i);
+	  continue;
+    }
     else
       e = pool_elt_at_index (fm->pool_per_worker[cpu_index], *i);
 
@@ -705,21 +706,20 @@ flowprobe_walker_process (vlib_main_t * vm,
      * Premature passive timer by more than 10%
      */
     if ((now - e->last_updated) < (u64) (fm->passive_timer * 0.9))
-      {
-	u64 delta = fm->passive_timer - (now - e->last_updated);
-	e->passive_timer_handle = tw_timer_start_2t_1w_2048sl
-	  (fm->timers_per_worker[cpu_index], *i, 0, delta);
-      }
+    {
+	  u64 delta = fm->passive_timer - (now - e->last_updated);
+	  e->passive_timer_handle = tw_timer_start_2t_1w_2048sl(fm->timers_per_worker[cpu_index], *i, 0, delta);
+    }
     else			/* Nuke entry */
-      {
-	vec_add1 (to_be_removed, *i);
-      }
+    {
+	  vec_add1 (to_be_removed, *i);
+    }
     /* If anything to report send it to the exporter */
     if (e->packetcount && now > e->last_exported + fm->active_timer)
-      {
-	exported++;
-	flowprobe_export_entry (vm, e);
-      }
+    {
+	  exported++;
+	  flowprobe_export_entry (vm, e);
+    }
     count++;
   }
   if (count)
