@@ -55,7 +55,7 @@ set_ipfix_exporter_command_fn (vlib_main_t * vm,
 	  else if (unformat (input, "path-mtu %u", &path_mtu));
 	  // 解析模板更新间隔
       else if (unformat (input, "template-interval %u", &template_interval));
-	  // 解析校验和标志
+	  // 解析是否计算校验和标志
       else if (unformat (input, "udp-checksum"))
 		udp_checksum = 1;
       else
@@ -189,12 +189,12 @@ flow_report_process (vlib_main_t * vm,
 		template_bi = ~0;
 		rv = 0;
 
-		// 时间间隔到了，发送template
+		// 时间间隔到了，构造template数据包
 		if (send_template)
-		    // 发送，返回template数据包索引
+		    // 返回template数据包索引
 			rv = send_template_packet (frm, fr, &template_bi);
 
-        // 发送失败
+        // 构造template失败
 		if (rv < 0)
 			continue;
 
@@ -213,7 +213,8 @@ flow_report_process (vlib_main_t * vm,
 			nf->n_vectors++;
 		}
         
-		// 回到flowprobe插件中的flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2刷新数据
+		// 回调flowprobe插件注册的flowprobe_data_callback_ip4，flowprobe_data_callback_ip6，flowprobe_data_callback_l2刷新数据
+		// 构造data set数据
 		nf = fr->flow_data_callback (frm, fr, nf, to_next, ip4_lookup_node_index);
 		// 把frame传给下个节点：ip4-lookup，最后发送出去
 		if (nf)
@@ -229,8 +230,11 @@ send_template_packet (flow_report_main_t * frm,
 		      flow_report_t * fr, u32 * buffer_indexp)
 {
   u32 bi0;
+  // 数据包缓冲区
   vlib_buffer_t *b0;
+  // template结构
   ip4_ipfix_template_packet_t *tp;
+  // ipfix头
   ipfix_message_header_t *h;
   ip4_header_t *ip;
   udp_header_t *udp;
@@ -239,33 +243,41 @@ send_template_packet (flow_report_main_t * frm,
 
   ASSERT (buffer_indexp);
 
+  // 初始状态必须是要rewrite且rewrite字符串不为空，如果不是则进行状态修正
   if (fr->update_rewrite || fr->rewrite == 0)
-    {
-      if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
+  {
+    // 缺少collector ip或者src ip，则disable掉flow-report-process节点
+    if (frm->ipfix_collector.as_u32 == 0 || frm->src_address.as_u32 == 0)
 	{
 	  vlib_node_set_state (frm->vlib_main, flow_report_process_node.index,
 			       VLIB_NODE_STATE_DISABLED);
 	  return -1;
 	}
-      vec_free (fr->rewrite);
-      fr->update_rewrite = 1;
-    }
+	// 修正为初始状态
+    vec_free (fr->rewrite);
+    fr->update_rewrite = 1;
+  }
 
+  // 要rewrite
   if (fr->update_rewrite)
-    {
-      fr->rewrite = fr->rewrite_callback (frm, fr,
+  {
+    // 调用flowprobe注册的rewrite回调函数：flowprobe_template_rewrite_l2，flowprobe_template_rewrite_ip4，flowprobe_template_rewrite_ip6
+    // 这里的rewrite字符串为ipfix中的template data，即除了ipfix头16字节外的数据。
+	fr->rewrite = fr->rewrite_callback (frm, fr,
 					  &frm->ipfix_collector,
 					  &frm->src_address,
 					  frm->collector_port,
 					  fr->report_elements,
 					  fr->n_report_elements,
 					  fr->stream_indexp);
-      fr->update_rewrite = 0;
-    }
+	// 已rewrite过了，不需要rewrite了
+    fr->update_rewrite = 0;
+  }
 
+  // 申请数据包内存，返回数据包索引
   if (vlib_buffer_alloc (vm, &bi0, 1) != 1)
     return -1;
-
+  // 获取数据包地址
   b0 = vlib_get_buffer (vm, bi0);
 
   /* Initialize the buffer */
@@ -273,6 +285,7 @@ send_template_packet (flow_report_main_t * frm,
 
   ASSERT (vec_len (fr->rewrite) < vlib_buffer_get_default_data_size (vm));
 
+  // 将teplate data追加到ipfix头16字节之后。
   clib_memcpy_fast (b0->data, fr->rewrite, vec_len (fr->rewrite));
   b0->current_data = 0;
   b0->current_length = vec_len (fr->rewrite);
@@ -283,6 +296,7 @@ send_template_packet (flow_report_main_t * frm,
   tp = vlib_buffer_get_current (b0);
   ip = (ip4_header_t *) & tp->ip4;
   udp = (udp_header_t *) (ip + 1);
+  // 获取ipfix头，填充16字节
   h = (ipfix_message_header_t *) (udp + 1);
 
   /* FIXUP: message header export_time */
@@ -299,16 +313,19 @@ send_template_packet (flow_report_main_t * frm,
   /* FIXUP: udp length */
   udp->length = clib_host_to_net_u16 (b0->current_length - sizeof (*ip));
 
+  // 计算udp校验和
   if (frm->udp_checksum)
-    {
-      /* RFC 7011 section 10.3.2. */
-      udp->checksum = ip4_tcp_udp_compute_checksum (vm, b0, ip);
-      if (udp->checksum == 0)
-	udp->checksum = 0xffff;
-    }
+  {
+    /* RFC 7011 section 10.3.2. */
+    udp->checksum = ip4_tcp_udp_compute_checksum (vm, b0, ip);
+    if (udp->checksum == 0)
+		udp->checksum = 0xffff;
+  }
 
+  // 返回数据包索引
   *buffer_indexp = bi0;
 
+  // 更新上次template sent时间
   fr->last_template_sent = vlib_time_now (vm);
 
   return 0;
