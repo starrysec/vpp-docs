@@ -269,6 +269,7 @@ dpi_flow_offload_command_fn (vlib_main_t * vm,
 			      is_add ? "enabling" : "disabling");
 
   // enable or disable offload mode.
+  // enable/disable ip[4|6]-unicast arc's dpi[4|6]-flow-input node.
   dpi_flow_offload_mode (hw_if_index, is_ipv6, is_enable);
 
   return 0;
@@ -331,7 +332,8 @@ dpi_set_flow_bypass (u32 is_ip6,
       goto done;
   }
 
-  // enable or disable bypass mode.
+  // enable or disable bypass mode. 
+  // enable/disable ip-unicast arc's dpi[4|6]-input node.
   dpi_flow_bypass_mode (sw_if_index, is_ip6, is_enable);
 
 done:
