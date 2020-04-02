@@ -10,12 +10,42 @@ TW定时器模板文件`vppinfra/tw_timer_template.h`定义了定时器的基本
 
 ```
 初始化定时器：
-tw_timer_2t_1w_2048sl(&tm->single_wheel/* timer wheel object pointer */, 
+tw_timer_2t_1w_2048sl(&tm->single_wheel/* timer wheel pointer */, 
 					  expired_timer_single_callback/*expired callback*/, 
 					  1.0/* timer interval */);
 启动定时器：
+handle = tw_timer_start_2t_1w_2048sl(&tm->single_wheel/* timer wheel pointer */,
+									 elt_index/**/,
+									 [0 | 1]/* timer id */,
+									 expiration_time_in_u32_ticks/**/);
 停止定时器：
+tw_timer_stop_2t_1w_2048sl(&tm->single_wheel/* timer wheel pointer */,
+						   handle/**/);
 定时器过期回调：
+static void expired_timer_single_callback (u32 * expired_timers)
+{
+    int i;
+    u32 pool_index, timer_id;
+    tw_timer_test_elt_t *e;
+    tw_timer_test_main_t *tm = &tw_timer_test_main;
+
+    /* 遍历过期定时器 */
+    for (i = 0; i < vec_len (expired_timers);
+    {
+        pool_index = expired_timers[i] & 0x7FFFFFFF;
+        timer_id = expired_timers[i] >> 31;
+
+        ASSERT (timer_id == 1);
+
+        e = pool_elt_at_index (tm->test_elts, pool_index);
+
+        if (e->expected_to_expire != tm->single_wheel.current_tick)
+        {
+            fformat (stdout, "[%d] expired at %d not %d\n", e - tm->test_elts, tm->single_wheel.current_tick, e->expected_to_expire);
+        }
+        pool_put (tm->test_elts, e);
+    }
+}
 ```
 ### TW定时器结构体
 
