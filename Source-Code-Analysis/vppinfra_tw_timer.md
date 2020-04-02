@@ -4,7 +4,9 @@ TW定时器模板文件`vppinfra/tw_timer_template.h`定义了定时器的基本
 
 ### TW定时器原理
 
-### 定时器API使用
+![](vppinfra_tw_timer-1.png)
+
+### TW定时器API
 
 ```
 初始化定时器：
