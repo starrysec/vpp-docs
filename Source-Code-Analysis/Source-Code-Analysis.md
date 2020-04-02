@@ -17,6 +17,7 @@
 * 插件(Plugins)
   - [plugins_dpdk](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_dpdk.md)
   - [plugins_flowprobe](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_flowprobe.md)
+  - [plugins_udpi](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_udpi.md)
 * 基础设施(Vppinfra)
   - [vppinfra_tw_timer](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_tw_timer.md)
 * [邻接(Adjacency)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Adjacency.md)
