@@ -133,11 +133,9 @@ typedef struct
 
   /** 已过期定时器回调函数, 接收多个(vector)定时器句柄 */
   void (*expired_timer_callback) (u32 * expired_timer_handles);
-
   /** 已过期定时器vector */
   u32 *expired_timer_handles;
-
-  /** 最大到期时间 */
+  /** 可用于存储已过期定时器vector的最大值 */
   u32 max_expirations;
 
   /** current trace index */
@@ -148,6 +146,141 @@ typedef struct
     TWT (trace) traces[TW_START_STOP_TRACE_SIZE];
 #endif
 
+
 } TWT (tw_timer_wheel);
 ```
 
+### 初始化定时器
+
+#### vppinfra/tw_timer_template.c
+
+**初始化定时器**
+```
+/**
+ * @brief Initialize a tw timer wheel template instance
+ * @param tw_timer_wheel_t * tw timer wheel object pointer
+ * @param void * expired_timer_callback. Passed a u32 * vector of
+ *   expired timer handles. The callback is optional.
+ * @param f64 timer_interval_in_seconds
+ */
+void
+TW (tw_timer_wheel_init) (TWT (tw_timer_wheel) * tw,
+			  void *expired_timer_callback,
+			  f64 timer_interval_in_seconds, u32 max_expirations)
+{
+  int ring, slot;
+  tw_timer_wheel_slot_t *ts;
+  TWT (tw_timer) * t;
+  clib_memset (tw, 0, sizeof (*tw));
+  
+  // 初始化已过期定时器回调函数，和最大个数
+  tw->expired_timer_callback = expired_timer_callback;
+  tw->max_expirations = max_expirations;
+  
+  // 时间间隔，合法性检查
+  if (timer_interval_in_seconds == 0.0)
+  {
+      clib_warning ("timer interval is zero");
+      abort ();
+  }
+  // 时间间隔，单位秒
+  tw->timer_interval = timer_interval_in_seconds;
+  // 每秒滴答数，为时间间隔的倒数
+  tw->ticks_per_second = 1.0 / timer_interval_in_seconds;
+  // 初始化第一个过期时间滴答数
+  tw->first_expires_tick = ~0ULL;
+ 
+  // 检查已过期定时器是否为空，长度是否为0
+  vec_validate (tw->expired_timer_handles, 0);
+  _vec_len (tw->expired_timer_handles) = 0;
+
+  // 遍历所有时间轮
+  for (ring = 0; ring < TW_TIMER_WHEELS; ring++)
+  {
+      // 遍历每个时间轮上的插槽
+      for (slot = 0; slot < TW_SLOTS_PER_RING; slot++)
+	  {
+	      // 获取插槽
+	      ts = &tw->w[ring][slot];
+	      // 从定时器池中申请定时器t
+	      pool_get (tw->timers, t);
+	      // 初始化定时器t
+	      clib_memset (t, 0xff, sizeof (*t));
+	      // 根据t在定时器池中的索引初始化next和prev
+	      t->next = t->prev = t - tw->timers;
+	      // 初始插槽时间间隔内到期的定时器列表为t的索引
+	      ts->head_index = t - tw->timers;
+	  }
+  }
+
+#if TW_OVERFLOW_VECTOR > 0
+  ts = &tw->overflow;
+  pool_get (tw->timers, t);
+  clib_memset (t, 0xff, sizeof (*t));
+  t->next = t->prev = t - tw->timers;
+  ts->head_index = t - tw->timers;
+#endif
+}
+```
+
+**释放定时器**
+```
+/**
+ * @brief Free a tw timer wheel template instance
+ * @param tw_timer_wheel_t * tw timer wheel object pointer
+ */
+void TW (tw_timer_wheel_free) (TWT (tw_timer_wheel) * tw)
+{
+  int i, j;
+  tw_timer_wheel_slot_t *ts;
+  TWT (tw_timer) * head, *t;
+  u32 next_index;
+
+  // 遍历所有时间轮
+  for (i = 0; i < TW_TIMER_WHEELS; i++)
+  {
+      // 遍历每个时间轮上的插槽
+      for (j = 0; j < TW_SLOTS_PER_RING; j++)
+	  {
+	      // 获取插槽
+	      ts = &tw->w[i][j];
+		  // 插槽时间间隔内到期的定时器列表头指针
+	      head = pool_elt_at_index (tw->timers, ts->head_index);
+		  // 回收头指针后面的所有定时器(放回定时器池中)
+	      next_index = head->next;
+	      while (next_index != ts->head_index)
+	      {
+		      // 根据索引获取定时器
+	          t = pool_elt_at_index (tw->timers, next_index);
+			  // next后移
+	          next_index = t->next;
+			  // 回收定时器到定时器池中
+	          pool_put (tw->timers, t);
+	      }
+		  // 回收头指针定时器
+	      pool_put (tw->timers, head);
+	  }
+  }
+
+#if TW_OVERFLOW_VECVOR > 0
+  ts = &tw->overflow;
+  head = pool_elt_at_index (tw->timers, ts->head_index);
+  next_index = head->next;
+
+  while (next_index != ts->head_index)
+  {
+      t = pool_elt_at_index (tw->timers, next_index);
+      next_index = t->next;
+      pool_put (tw->timers, t);
+  }
+  pool_put (tw->timers, head);
+#endif
+
+  // 复位时间轮定时器内存，清空
+  clib_memset (tw, 0, sizeof (*tw));
+}
+```
+
+**启动定时器**
+
+**停止定时器**
