@@ -62,12 +62,14 @@ typedef struct
   {
     struct
     {
+	//三级时间轮
 #if (TW_TIMER_WHEELS == 3)
       /** fast ring offset, only valid in the slow ring */
       u16 fast_ring_offset;
       /** slow ring offset, only valid in the glacier ring */
       u16 slow_ring_offset;
 #endif
+    //两级时间轮
 #if (TW_TIMER_WHEELS == 2)
       /** fast ring offset, only valid in the slow ring */
       u16 fast_ring_offset;
@@ -348,6 +350,130 @@ TW (make_internal_timer_handle) (u32 pool_index, u32 timer_id)
   handle = pool_index;
 #endif
   return handle;
+}
+```
+
+```
+static inline void
+timer_add (TWT (tw_timer_wheel) * tw, TWT (tw_timer) * t, u64 interval)
+{
+#if TW_TIMER_WHEELS > 1
+  u16 slow_ring_offset;
+  u32 carry;
+#endif
+#if TW_TIMER_WHEELS > 2
+  u16 glacier_ring_offset;
+#endif
+#if TW_OVERFLOW_VECTOR > 0
+  u64 interval_plus_time_to_wrap, triple_wrap_mask;
+#endif
+  u16 fast_ring_offset;
+  tw_timer_wheel_slot_t *ts;
+
+  /* Factor interval into 1..3 wheel offsets */
+#if TW_TIMER_WHEELS > 2
+#if TW_OVERFLOW_VECTOR > 0
+  /*
+   * This is tricky. Put a timer onto the overflow
+   * vector if the interval PLUS the time
+   * until the next triple-wrap exceeds one full revolution
+   * of all three wheels.
+   */
+  triple_wrap_mask = (1 << (3 * TW_RING_SHIFT)) - 1;
+  interval_plus_time_to_wrap = interval + (tw->current_tick & triple_wrap_mask);
+  if ((interval_plus_time_to_wrap >= 1 << (3 * TW_RING_SHIFT)))
+  {
+      t->expiration_time = tw->current_tick + interval;
+      ts = &tw->overflow;
+      timer_addhead (tw->timers, ts->head_index, t - tw->timers);
+#if TW_START_STOP_TRACE_SIZE > 0
+      TW (tw_timer_trace) (tw, timer_id, user_id, t - tw->timers);
+#endif
+      return;
+  }
+#endif
+
+  glacier_ring_offset = interval >> (2 * TW_RING_SHIFT);
+  ASSERT ((u64) glacier_ring_offset < TW_SLOTS_PER_RING);
+  interval -= (((u64) glacier_ring_offset) << (2 * TW_RING_SHIFT));
+#endif
+#if TW_TIMER_WHEELS > 1
+  slow_ring_offset = interval >> TW_RING_SHIFT;
+  ASSERT ((u64) slow_ring_offset < TW_SLOTS_PER_RING);
+  interval -= (((u64) slow_ring_offset) << TW_RING_SHIFT);
+#endif
+  fast_ring_offset = interval & TW_RING_MASK;
+
+  /*
+   * Account for the current wheel positions(s)
+   * This is made slightly complicated by the fact that the current
+   * index vector will contain (TW_SLOTS_PER_RING, ...) when
+   * the actual position is (0, ...)
+   */
+
+  fast_ring_offset += tw->current_index[TW_TIMER_RING_FAST] & TW_RING_MASK;
+
+#if TW_TIMER_WHEELS > 1
+  carry = fast_ring_offset >= TW_SLOTS_PER_RING ? 1 : 0;
+  fast_ring_offset %= TW_SLOTS_PER_RING;
+  slow_ring_offset += (tw->current_index[TW_TIMER_RING_SLOW] & TW_RING_MASK) + carry;
+  carry = slow_ring_offset >= TW_SLOTS_PER_RING ? 1 : 0;
+  slow_ring_offset %= TW_SLOTS_PER_RING;
+#endif
+
+#if TW_TIMER_WHEELS > 2
+  glacier_ring_offset += (tw->current_index[TW_TIMER_RING_GLACIER] & TW_RING_MASK) + carry;
+  glacier_ring_offset %= TW_SLOTS_PER_RING;
+#endif
+
+#if TW_TIMER_WHEELS > 2
+  if (glacier_ring_offset != (tw->current_index[TW_TIMER_RING_GLACIER] & TW_RING_MASK))
+  {
+      /* We'll need slow and fast ring offsets later */
+      t->slow_ring_offset = slow_ring_offset;
+      t->fast_ring_offset = fast_ring_offset;
+
+      ts = &tw->w[TW_TIMER_RING_GLACIER][glacier_ring_offset];
+
+      timer_addhead (tw->timers, ts->head_index, t - tw->timers);
+#if TW_START_STOP_TRACE_SIZE > 0
+      TW (tw_timer_trace) (tw, timer_id, user_id, t - tw->timers);
+#endif
+      return;
+  }
+#endif
+
+#if TW_TIMER_WHEELS > 1
+  /* Timer expires more than 51.2 seconds from now? */
+  if (slow_ring_offset != (tw->current_index[TW_TIMER_RING_SLOW] & TW_RING_MASK))
+  {
+      /* We'll need the fast ring offset later... */
+      t->fast_ring_offset = fast_ring_offset;
+
+      ts = &tw->w[TW_TIMER_RING_SLOW][slow_ring_offset];
+
+      timer_addhead (tw->timers, ts->head_index, t - tw->timers);
+#if TW_START_STOP_TRACE_SIZE > 0
+      TW (tw_timer_trace) (tw, timer_id, user_id, t - tw->timers);
+#endif
+      return;
+  }
+#else
+  fast_ring_offset %= TW_SLOTS_PER_RING;
+#endif
+
+  /* Timer expires less than one fast-ring revolution from now */
+  ts = &tw->w[TW_TIMER_RING_FAST][fast_ring_offset];
+
+  timer_addhead (tw->timers, ts->head_index, t - tw->timers);
+
+#if TW_FAST_WHEEL_BITMAP
+  tw->fast_slot_bitmap = clib_bitmap_set (tw->fast_slot_bitmap,
+					  fast_ring_offset, 1);
+#endif
+#if TW_START_STOP_TRACE_SIZE > 0
+  TW (tw_timer_trace) (tw, timer_id, user_id, t - tw->timers);
+#endif
 }
 ```
 
