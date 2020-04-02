@@ -268,7 +268,7 @@ dpi_flow_offload_command_fn (vlib_main_t * vm,
     return clib_error_return (0, "error %s flow",
 			      is_add ? "enabling" : "disabling");
 
-  // enable offload.
+  // enable or disable offload mode.
   dpi_flow_offload_mode (hw_if_index, is_ipv6, is_enable);
 
   return 0;
@@ -308,26 +308,30 @@ dpi_set_flow_bypass (u32 is_ip6,
     return 0;
 
   while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
-    {
+  {
+	  // parse interface.
       if (unformat_user (line_input, unformat_vnet_sw_interface, vnm,
-			 &sw_if_index))
-	;
+			 &sw_if_index));
+	  // add or delete.
       else if (unformat (line_input, "del"))
-	is_enable = 0;
+		is_enable = 0;
+	  // error occurred.
       else
-	{
-	  error = unformat_parse_error (line_input);
-	  goto done;
-	}
-    }
+	  {
+	    error = unformat_parse_error (line_input);
+	    goto done;
+	  }
+  }
 
+  // check interface.
   if (~0 == sw_if_index)
-    {
+  {
       error = clib_error_return (0, "unknown interface `%U'",
 				 format_unformat_error, line_input);
       goto done;
-    }
+  }
 
+  // enable or disable bypass mode.
   dpi_flow_bypass_mode (sw_if_index, is_ip6, is_enable);
 
 done:
