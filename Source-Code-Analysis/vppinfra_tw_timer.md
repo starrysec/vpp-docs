@@ -2,29 +2,11 @@
 
 TW定时器模板文件`vppinfra/tw_timer_template.h`定义了定时器的基本参数，具体实例由`vppinfra/tw_timer_*s_*w_*sl.h/c`等文件实现。
 
-TW定时器基本参数：
-* 时间轮(wheels)个数：目前只有1，2
-* 每个时间轮上的插槽(slots)个数：必须是2的幂
-* 每个对象句柄(object handle)的定时器个数：现在有1，2，4，16
-```
-在VPP内部，每个定时器句柄可管理的用户对象数是一个32位的整形，因此，如果选择每个用户对象16个定时器(4位，2^4=16)，则每个定时器可以管理的用户对象最大为（2^28=268435456）个。
-```
+### TW定时器原理
+
+### 定时器API使用
 
 ```
-下面是一个定时器的具体配置：1个时间轮(1w)2048个插槽(2048sl)可以支持一个对象两个定时器(2t)，tw_timer_2t_1w_2048sl。
-#define TW_TIMER_WHEELS 			1
-#define TW_SLOTS_PER_RING 			2048
-#define TW_RING_SHIFT 				11
-#define TW_RING_MASK 				(TW_SLOTS_PER_RING - 1)
-#define TW_TIMERS_PER_OBJECT 		2
-#define LOG2_TW_TIMERS_PER_OBJECT 	1
-#define TW_SUFFIX 					_2t_1w_2048sl
-实现查看tw_timer_2t_1w_2048sl.h/c
-```
-
-```
-定时器API使用举例：
-
 初始化定时器：
 tw_timer_2t_1w_2048sl(&tm->single_wheel/* timer wheel object pointer */, 
 					  expired_timer_single_callback/*expired callback*/, 
@@ -33,6 +15,7 @@ tw_timer_2t_1w_2048sl(&tm->single_wheel/* timer wheel object pointer */,
 停止定时器：
 定时器过期回调：
 ```
+### TW定时器结构体
 
 **定时器结构体**
 ```
@@ -202,7 +185,7 @@ TW (tw_timer_wheel_init) (TWT (tw_timer_wheel) * tw,
 	  {
 	      // 获取插槽
 	      ts = &tw->w[ring][slot];
-	      // 从定时器池中申请定时器t
+	      // 从定时器池中分配定时器t
 	      pool_get (tw->timers, t);
 	      // 初始化定时器t
 	      clib_memset (t, 0xff, sizeof (*t));
@@ -282,5 +265,94 @@ void TW (tw_timer_wheel_free) (TWT (tw_timer_wheel) * tw)
 ```
 
 **启动定时器**
+```
+/**
+ * @brief Start a Tw Timer
+ * @param tw_timer_wheel_t * tw timer wheel object pointer
+ * @param u32 user_id user defined timer id, presumably for a tw session
+ * @param u32 timer_id app-specific timer ID. 4 bits.
+ * @param u64 interval timer interval in ticks
+ * @returns handle needed to cancel the timer
+ */
+u32
+TW (tw_timer_start) (TWT (tw_timer_wheel) * tw, u32 user_id, u32 timer_id,
+		     u64 interval)
+{
+  TWT (tw_timer) * t;
+
+  ASSERT (interval);
+
+  // 从定时器池中分配定时器t
+  pool_get (tw->timers, t);
+  // 初始化定时器t
+  clib_memset (t, 0xff, sizeof (*t));
+
+  // 计算用户定时器句柄
+  t->user_handle = TW (make_internal_timer_handle) (user_id, timer_id);
+
+  // 将定时器t和时间间隔加入到时间轮定时器中
+  timer_add (tw, t, interval);
+  // 返回新加入的定时器t索引
+  return t - tw->timers;
+}
+```
+
+```
+static inline u32
+TW (make_internal_timer_handle) (u32 pool_index, u32 timer_id)
+{
+  u32 handle;
+
+  // 检验timer_id(timers per object)
+  ASSERT (timer_id < TW_TIMERS_PER_OBJECT);
+#if LOG2_TW_TIMERS_PER_OBJECT > 0
+  // 校验pool_id(user_id)
+  ASSERT (pool_index < (1 << (32 - LOG2_TW_TIMERS_PER_OBJECT)));
+
+  // 计算handle(user handle)
+  handle = (timer_id << (32 - LOG2_TW_TIMERS_PER_OBJECT)) | (pool_index);
+#else
+  // handle赋pool_index(user_id)
+  handle = pool_index;
+#endif
+  return handle;
+}
+```
 
 **停止定时器**
+```
+/**
+ * @brief Stop a tw timer
+ * @param tw_timer_wheel_t * tw timer wheel object pointer
+ * @param u32 handle timer cancellation returned by tw_timer_start
+ */
+void TW (tw_timer_stop) (TWT (tw_timer_wheel) * tw, u32 handle)
+{
+  TWT (tw_timer) * t;
+
+#if TW_TIMER_ALLOW_DUPLICATE_STOP
+  /*
+   * A vlib process may have its timer expire, and receive
+   * an event before the expiration is processed.
+   * That results in a duplicate tw_timer_stop.
+   */
+  if (pool_is_free_index (tw->timers, handle))
+    return;
+#endif
+#if TW_START_STOP_TRACE_SIZE > 0
+  TW (tw_timer_trace) (tw, ~0, ~0, handle);
+#endif
+
+  // 根据定时器索引，找到定时器t
+  t = pool_elt_at_index (tw->timers, handle);
+
+  /* in case of idiotic handle (e.g. passing a listhead index) */
+  ASSERT (t->user_handle != ~0);
+
+  // 从定时器池中移除定时器t
+  timer_remove (tw->timers, t);
+
+  // 释放定时器t
+  pool_put_index (tw->timers, handle);
+}
+```
