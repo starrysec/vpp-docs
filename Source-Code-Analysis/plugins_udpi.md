@@ -134,41 +134,46 @@ dpi_tcp_reass_command_fn (vlib_main_t * vm,
     return 0;
 
   while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
-    {
-      if (unformat (line_input, "flow_id %d", &flow_id))
-	;
-      else if (unformat (line_input, "enable"))
+  {
+	// parse flow id.
+    if (unformat (line_input, "flow_id %d", &flow_id));
+	// enable or disable tcp reassembly.
+    else if (unformat (line_input, "enable"))
 	{
 	  reass_en = 1;
 	}
-      else if (unformat (line_input, "disable"))
+    else if (unformat (line_input, "disable"))
 	{
 	  reass_en = 0;
 	}
-      else if (unformat (line_input, "client"))
+	// parse tcp reassembly direction. client, server or both.
+    else if (unformat (line_input, "client"))
 	{
 	  reass_dir = REASS_C2S;
 	}
-      else if (unformat (line_input, "server"))
+    else if (unformat (line_input, "server"))
 	{
 	  reass_dir = REASS_S2C;
 	}
-      else if (unformat (line_input, "both"))
+    else if (unformat (line_input, "both"))
 	{
 	  reass_dir = REASS_BOTH;
 	}
+	  // error occurred.
       else
 	return clib_error_return (0, "parse error: '%U'",
 				  format_unformat_error, line_input);
-    }
+  }
 
   unformat_free (line_input);
 
+  // fill tcp reassembly args.
   tcp_reass_args_t a = {.flow_id = flow_id,
     .reass_en = reass_en,
     .reass_dir = reass_dir,
   };
 
+  // set flow's reassembly infos.
   rv = dpi_tcp_reass (&a);
   if (rv < 0)
     return clib_error_return (0, "flow error: %d", rv);
@@ -208,52 +213,62 @@ dpi_flow_offload_command_fn (vlib_main_t * vm,
     return 0;
 
   while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
-    {
-      if (unformat (line_input, "hw %U", unformat_vnet_hw_interface, vnm,
+  {
+    // parse hardware interface name.
+    if (unformat (line_input, "hw %U", unformat_vnet_hw_interface, vnm,
 		    &hw_if_index))
-	continue;
-      if (unformat (line_input, "rx %d", &rx_flow_id))
-	continue;
-      if (unformat (line_input, "del"))
+	  continue;
+	// parse rx flow id.
+    if (unformat (line_input, "rx %d", &rx_flow_id))
+	  continue;
+	// parse action: add or delete.
+    if (unformat (line_input, "del"))
 	{
 	  is_add = 0;
 	  continue;
 	}
-      return clib_error_return (0, "unknown input `%U'",
+	// error occurred.
+    return clib_error_return (0, "unknown input `%U'",
 				format_unformat_error, line_input);
-    }
+  }
 
+  // check flow id and hw interface.
   if (rx_flow_id == ~0)
     return clib_error_return (0, "missing rx flow");
   if (hw_if_index == ~0)
     return clib_error_return (0, "missing hw interface");
 
+  // get flow entry by rx flow id.
   flow = pool_elt_at_index (dm->dpi_flows, rx_flow_id);
 
+  // get hw interface structure by hw interface index.
   hw_if = vnet_get_hw_interface (vnm, hw_if_index);
 
+  // ipv6 or ipv4.
   is_ipv6 = ip46_address_is_ip4 (&(flow->key.src_ip)) ? 0 : 1;
 
+  // get rx fib index by sw interface index.
   if (is_ipv6)
-    {
+  {
       ip6_main_t *im6 = &ip6_main;
-      rx_fib_index =
-	vec_elt (im6->fib_index_by_sw_if_index, hw_if->sw_if_index);
-    }
+      rx_fib_index = vec_elt (im6->fib_index_by_sw_if_index, hw_if->sw_if_index);
+  }
   else
-    {
+  {
       ip4_main_t *im4 = &ip4_main;
-      rx_fib_index =
-	vec_elt (im4->fib_index_by_sw_if_index, hw_if->sw_if_index);
-    }
+      rx_fib_index = vec_elt (im4->fib_index_by_sw_if_index, hw_if->sw_if_index);
+  }
 
+  // check flow fib index is equal to rx fib index.
   if (flow->key.fib_index != rx_fib_index)
     return clib_error_return (0, "interface/flow fib mismatch");
 
+  // add or delte rx flow on interface.
   if (dpi_add_del_rx_flow (hw_if_index, rx_flow_id, is_add, is_ipv6))
     return clib_error_return (0, "error %s flow",
 			      is_add ? "enabling" : "disabling");
 
+  // enable offload.
   dpi_flow_offload_mode (hw_if_index, is_ipv6, is_enable);
 
   return 0;
