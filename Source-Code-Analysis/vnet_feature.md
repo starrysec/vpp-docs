@@ -339,12 +339,12 @@ vnet_feature_arc_init (vlib_main_t * vm,
 
   /* Autogenerate <node> before <last-in-arc> constraints */
   if (last_in_arc)
-    {
-      while (this_reg)
+  {
+    while (this_reg)
     {
       /* If this isn't the last node in the arc... */
       if (clib_strcmp (this_reg->node_name, last_in_arc))
-        {
+      {
           /*
            * Add an explicit constraint so this feature will run
            * before the last node in the arc
@@ -352,15 +352,15 @@ vnet_feature_arc_init (vlib_main_t * vm,
           constraint_tuple = format (0, "%s,%s%c", this_reg->node_name,
                      last_in_arc, 0);
           vec_add1 (constraints, constraint_tuple);
-        }
+      }
       this_reg = this_reg->next_in_arc;
     }
-      this_reg = first_reg;
-    }
+    this_reg = first_reg;
+  }
 
   /* pass 1, collect feature node names, construct a before b pairs */
   while (this_reg)
-    {
+  {
       node_name = format (0, "%s%c", this_reg->node_name, 0);
       hash_set (reg_by_index, vec_len (node_names), (uword) this_reg);
 
@@ -370,76 +370,74 @@ vnet_feature_arc_init (vlib_main_t * vm,
 
       these_constraints = this_reg->runs_before;
       while (these_constraints && these_constraints[0])
-    {
-      this_constraint_c = these_constraints[0];
+      {
+        this_constraint_c = these_constraints[0];
 
-      constraint_tuple = format (0, "%s,%s%c", node_name,
+        constraint_tuple = format (0, "%s,%s%c", node_name,
                      this_constraint_c, 0);
-      vec_add1 (constraints, constraint_tuple);
-      these_constraints++;
-    }
+        vec_add1 (constraints, constraint_tuple);
+        these_constraints++;
+      }
 
       these_constraints = this_reg->runs_after;
       while (these_constraints && these_constraints[0])
-    {
-      this_constraint_c = these_constraints[0];
+      {
+        this_constraint_c = these_constraints[0];
 
-      constraint_tuple = format (0, "%s,%s%c",
+        constraint_tuple = format (0, "%s,%s%c",
                      this_constraint_c, node_name, 0);
-      vec_add1 (constraints, constraint_tuple);
-      these_constraints++;
-    }
+        vec_add1 (constraints, constraint_tuple);
+        these_constraints++;
+      }
 
       this_reg = this_reg->next_in_arc;
-    }
+  }
 
   /* pass 2, collect bulk "a then b then c then d" constraints */
   this_const_set = first_const_set;
   while (this_const_set)
-    {
+  {
       these_constraints = this_const_set->node_names;
 
       prev_name = 0;
       /* Across the list of constraints */
       while (these_constraints && these_constraints[0])
-    {
-      this_constraint_c = these_constraints[0];
-      p = hash_get_mem (index_by_name, this_constraint_c);
-      if (p == 0)
+      {
+        this_constraint_c = these_constraints[0];
+        p = hash_get_mem (index_by_name, this_constraint_c);
+        if (p == 0)
         {
-          clib_warning
-        ("bulk constraint feature node '%s' not found for arc '%s'",
-         this_constraint_c);
+          clib_warning("bulk constraint feature node '%s' not found for arc '%s'", this_constraint_c);
           these_constraints++;
           continue;
         }
 
-      if (prev_name == 0)
+        if (prev_name == 0)
         {
           prev_name = this_constraint_c;
           these_constraints++;
           continue;
         }
 
-      constraint_tuple = format (0, "%s,%s%c", prev_name,
+        constraint_tuple = format (0, "%s,%s%c", prev_name,
                      this_constraint_c, 0);
-      vec_add1 (constraints, constraint_tuple);
-      prev_name = this_constraint_c;
-      these_constraints++;
-    }
+        vec_add1 (constraints, constraint_tuple);
+        prev_name = this_constraint_c;
+        these_constraints++;
+      }
 
       this_const_set = this_const_set->next_in_arc;
-    }
+  }
 
   n_features = vec_len (node_names);
   orig = clib_ptclosure_alloc (n_features);
 
   for (i = 0; i < vec_len (constraints); i++)
-    {
+  {
       this_constraint = constraints[i];
 
       if (comma_split (this_constraint, &a_name, &b_name))
-    return clib_error_return (0, "comma_split failed!");
+        return clib_error_return (0, "comma_split failed!");
 
       p = hash_get_mem (index_by_name, a_name);
       /*
@@ -449,26 +447,26 @@ vnet_feature_arc_init (vlib_main_t * vm,
        * Nonexistent graph nodes are tolerated.
        */
       if (p == 0)
-    {
-      clib_warning ("feature node '%s' not found (before '%s', arc '%s')",
+      {
+        clib_warning ("feature node '%s' not found (before '%s', arc '%s')",
             a_name, b_name, first_reg->arc_name);
-      continue;
-    }
+        continue;
+      }
       a_index = p[0];
 
       p = hash_get_mem (index_by_name, b_name);
       if (p == 0)
-    {
-      clib_warning ("feature node '%s' not found (after '%s', arc '%s')",
+      {
+        clib_warning ("feature node '%s' not found (after '%s', arc '%s')",
             b_name, a_name, first_reg->arc_name);
-      continue;
-    }
+        continue;
+      }
       b_index = p[0];
 
       /* add a before b to the original set of constraints */
       orig[a_index][b_index] = 1;
       vec_free (this_constraint);
-    }
+  }
 
   /* Compute the positive transitive closure of the original constraints */
   closure = clib_ptclosure (orig);
@@ -476,27 +474,27 @@ vnet_feature_arc_init (vlib_main_t * vm,
   /* Compute a partial order across feature nodes, if one exists. */
 again:
   for (i = 0; i < n_features; i++)
-    {
-      for (j = 0; j < n_features; j++)
+  {
+    for (j = 0; j < n_features; j++)
     {
       if (closure[i][j])
         goto item_constrained;
     }
-      /* Item i can be output */
-      vec_add1 (result, i);
-      {
-    for (k = 0; k < n_features; k++)
-      closure[k][i] = 0;
-    /*
-     * Add a "Magic" a before a constraint.
-     * This means we'll never output it again
-     */
-    closure[i][i] = 1;
-    goto again;
-      }
-    item_constrained:
-      ;
+    /* Item i can be output */
+    vec_add1 (result, i);
+    {
+      for (k = 0; k < n_features; k++)
+        closure[k][i] = 0;
+      /*
+       * Add a "Magic" a before a constraint.
+       * This means we'll never output it again
+       */
+      closure[i][i] = 1;
+      goto again;
     }
+    item_constrained:
+    ;
+  }
 
   /* see if we got a partial order... */
   if (vec_len (result) != n_features)
@@ -513,15 +511,15 @@ again:
    */
 
   for (i = n_features - 1; i >= 0; i--)
-    {
+  {
       p = hash_get (reg_by_index, result[i]);
       ASSERT (p != 0);
       this_reg = (vnet_feature_registration_t *) p[0];
       if (this_reg->feature_index_ptr)
-    *this_reg->feature_index_ptr = n_features - (i + 1);
+        *this_reg->feature_index_ptr = n_features - (i + 1);
       this_reg->feature_index = n_features - (i + 1);
       vec_add1 (feature_nodes, this_reg->node_name);
-    }
+  }
 
   /* Set up the config infrastructure */
   vnet_config_init (vm, vcm,
