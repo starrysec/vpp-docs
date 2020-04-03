@@ -162,17 +162,22 @@ show_features_command_fn (vlib_main_t * vm,
     else
       vlib_cli_output (vm, "%s:", areg->arc_name);
 
+    // featre registration info of arc's next feature.
     freg = fm->next_feature_by_arc[areg->feature_arc_index];
     while (freg)
     {
+      // add feature to feature_regs vector.
       vec_add1 (feature_regs, freg[0]);
       freg = freg->next_in_arc;
     }
 
+    // 给feature_regs排序
     vec_sort_with_function (feature_regs, feature_cmp);
 
+    // 遍历featrue_args
     vec_foreach (freg, feature_regs)
     {
+      // 输出feature index和feature节点名称
       if (verbose)
         vlib_cli_output (vm, "  [%2d]: %s\n", freg->feature_index,
                freg->node_name);
@@ -180,7 +185,7 @@ show_features_command_fn (vlib_main_t * vm,
         vlib_cli_output (vm, "  %s\n", freg->node_name);
     }
     vec_reset_length (feature_regs);
-    /* next */
+    /* next arc */
     areg = areg->next;
   }
   vec_free (feature_regs);
