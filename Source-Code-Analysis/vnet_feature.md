@@ -114,3 +114,77 @@ done:
 ### 查看
 
 #### vnet/feature/feature.c
+
+**show features**
+```
+/*?
+ * Display the set of available driver features
+ *
+ * @cliexpar
+ * Example:
+ * @cliexcmd{show features [verbose]}
+ * @cliexend
+ * @endparblock
+?*/
+VLIB_CLI_COMMAND (show_features_command, static) = {
+  .path = "show features",
+  .short_help = "show features [verbose]",
+  .function = show_features_command_fn,
+};
+
+/** Display the set of available driver features.
+    Useful for verifying that expected features are present
+*/
+static clib_error_t *
+show_features_command_fn (vlib_main_t * vm,
+              unformat_input_t * input, vlib_cli_command_t * cmd)
+{
+  vnet_feature_main_t *fm = &feature_main;
+  vnet_feature_arc_registration_t *areg;
+  vnet_feature_registration_t *freg;
+  vnet_feature_registration_t *feature_regs = 0;
+  int verbose = 0;
+
+  if (unformat (input, "verbose"))
+    verbose = 1;
+
+  vlib_cli_output (vm, "Available feature paths");
+
+  // 遍历arc
+  areg = fm->next_arc;
+  while (areg)
+  {
+    // show both arc index and arc name when verbose flag set.
+    if (verbose)
+      vlib_cli_output (vm, "[%2d] %s:", areg->feature_arc_index,
+             areg->arc_name);
+    // shwo arc name.
+    else
+      vlib_cli_output (vm, "%s:", areg->arc_name);
+
+    freg = fm->next_feature_by_arc[areg->feature_arc_index];
+    while (freg)
+    {
+      vec_add1 (feature_regs, freg[0]);
+      freg = freg->next_in_arc;
+    }
+
+    vec_sort_with_function (feature_regs, feature_cmp);
+
+    vec_foreach (freg, feature_regs)
+    {
+      if (verbose)
+        vlib_cli_output (vm, "  [%2d]: %s\n", freg->feature_index,
+               freg->node_name);
+      else
+        vlib_cli_output (vm, "  %s\n", freg->node_name);
+    }
+    vec_reset_length (feature_regs);
+    /* next */
+    areg = areg->next;
+  }
+  vec_free (feature_regs);
+
+  return 0;
+}
+```
