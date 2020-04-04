@@ -1,129 +1,16 @@
 ## Packet Generator
 
+Packet Generator用法，请参见[官方文档](https://wiki.fd.io/view/VPP/How_To_Use_The_Packet_Generator_and_Packet_Tracer)。
+* [Create/Delete Stream]()
+* [Enable/Disable Stream]()
+* [Packet-Generator Create/Delete]()
+* [Packet-Generator Capture]()
+* [Packet-Generator Configure]()
+* [Show Packet-Generator]()
+
 ### 配置
 
 #### vnet/pg/cli.c
-
-**enable/disable specified stream**
-```
-VLIB_CLI_COMMAND (enable_streams_cli, static) = {
-  .path = "packet-generator enable-stream",
-  .short_help = "Enable packet generator streams",
-  .function = enable_disable_stream,
-  .function_arg = 1,        /* is_enable */
-};
-
-VLIB_CLI_COMMAND (disable_streams_cli, static) = {
-  .path = "packet-generator disable-stream",
-  .short_help = "Disable packet generator streams",
-  .function = enable_disable_stream,
-  .function_arg = 0,        /* is_enable */
-};
-
-static clib_error_t *
-enable_disable_stream (vlib_main_t * vm,
-               unformat_input_t * input, vlib_cli_command_t * cmd)
-{
-  unformat_input_t _line_input, *line_input = &_line_input;
-  pg_main_t *pg = &pg_main;
-  int is_enable = cmd->function_arg != 0;
-  u32 stream_index = ~0;
-
-  if (!unformat_user (input, unformat_line_input, line_input))
-    goto doit;
-
-  while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
-  {
-    // parse stream id by stream name.
-    if (unformat (line_input, "%U", unformat_hash_vec_string,
-            pg->stream_index_by_name, &stream_index));
-    // error occured.
-    else
-      return clib_error_create ("unknown input `%U'",
-                  format_unformat_error, line_input);
-  }
-  unformat_free (line_input);
-
-doit:
-  // enable or disable specified stream.
-  pg_enable_disable (stream_index, is_enable);
-
-  return 0;
-}
-
-void
-pg_enable_disable (u32 stream_index, int is_enable)
-{
-  pg_main_t *pg = &pg_main;
-  pg_stream_t *s;
-
-  if (stream_index == ~0)
-    {
-      /* No stream specified: enable/disable all streams. */
-      /* *INDENT-OFF* */
-        pool_foreach (s, pg->streams, ({
-            pg_stream_enable_disable (pg, s, is_enable);
-        }));
-    /* *INDENT-ON* */
-    }
-  else
-    {
-      /* enable/disable specified stream. */
-      s = pool_elt_at_index (pg->streams, stream_index);
-      pg_stream_enable_disable (pg, s, is_enable);
-    }
-}
-
-/* Mark stream active or inactive. */
-void
-pg_stream_enable_disable (pg_main_t * pg, pg_stream_t * s, int want_enabled)
-{
-  vlib_main_t *vm;
-  vnet_main_t *vnm = vnet_get_main ();
-  pg_interface_t *pi = pool_elt_at_index (pg->interfaces, s->pg_if_index);
-
-  want_enabled = want_enabled != 0;
-
-  if (pg_stream_is_enabled (s) == want_enabled)
-    /* No change necessary. */
-    return;
-
-  if (want_enabled)
-    s->n_packets_generated = 0;
-
-  /* Toggle enabled flag. */
-  s->flags ^= PG_STREAM_FLAGS_IS_ENABLED;
-
-  ASSERT (!pool_is_free (pg->streams, s));
-
-  vec_validate (pg->enabled_streams, s->worker_index);
-  pg->enabled_streams[s->worker_index] =
-    clib_bitmap_set (pg->enabled_streams[s->worker_index], s - pg->streams,
-             want_enabled);
-
-  if (want_enabled)
-    {
-      vnet_hw_interface_set_flags (vnm, pi->hw_if_index,
-                   VNET_HW_INTERFACE_FLAG_LINK_UP);
-
-      vnet_sw_interface_set_flags (vnm, pi->sw_if_index,
-                   VNET_SW_INTERFACE_FLAG_ADMIN_UP);
-    }
-
-  if (vlib_num_workers ())
-    vm = vlib_get_worker_vlib_main (s->worker_index);
-  else
-    vm = vlib_get_main ();
-
-  vlib_node_set_state (vm, pg_input_node.index,
-               (clib_bitmap_is_zero
-            (pg->enabled_streams[s->worker_index]) ?
-            VLIB_NODE_STATE_DISABLED : VLIB_NODE_STATE_POLLING));
-
-  s->packet_accumulator = 0;
-  s->time_last_generate = 0;
-}
-```
 
 **create/delete stream**
 ```
@@ -309,6 +196,127 @@ del_stream (vlib_main_t * vm,
 
   pg_stream_del (pg, i);
   return 0;
+}
+```
+
+**enable/disable stream**
+```
+VLIB_CLI_COMMAND (enable_streams_cli, static) = {
+  .path = "packet-generator enable-stream",
+  .short_help = "Enable packet generator streams",
+  .function = enable_disable_stream,
+  .function_arg = 1,        /* is_enable */
+};
+
+VLIB_CLI_COMMAND (disable_streams_cli, static) = {
+  .path = "packet-generator disable-stream",
+  .short_help = "Disable packet generator streams",
+  .function = enable_disable_stream,
+  .function_arg = 0,        /* is_enable */
+};
+
+static clib_error_t *
+enable_disable_stream (vlib_main_t * vm,
+               unformat_input_t * input, vlib_cli_command_t * cmd)
+{
+  unformat_input_t _line_input, *line_input = &_line_input;
+  pg_main_t *pg = &pg_main;
+  int is_enable = cmd->function_arg != 0;
+  u32 stream_index = ~0;
+
+  if (!unformat_user (input, unformat_line_input, line_input))
+    goto doit;
+
+  while (unformat_check_input (line_input) != UNFORMAT_END_OF_INPUT)
+  {
+    // parse stream id by stream name.
+    if (unformat (line_input, "%U", unformat_hash_vec_string,
+            pg->stream_index_by_name, &stream_index));
+    // error occured.
+    else
+      return clib_error_create ("unknown input `%U'",
+                  format_unformat_error, line_input);
+  }
+  unformat_free (line_input);
+
+doit:
+  // enable or disable specified stream.
+  pg_enable_disable (stream_index, is_enable);
+
+  return 0;
+}
+
+void
+pg_enable_disable (u32 stream_index, int is_enable)
+{
+  pg_main_t *pg = &pg_main;
+  pg_stream_t *s;
+
+  if (stream_index == ~0)
+    {
+      /* No stream specified: enable/disable all streams. */
+      /* *INDENT-OFF* */
+        pool_foreach (s, pg->streams, ({
+            pg_stream_enable_disable (pg, s, is_enable);
+        }));
+    /* *INDENT-ON* */
+    }
+  else
+    {
+      /* enable/disable specified stream. */
+      s = pool_elt_at_index (pg->streams, stream_index);
+      pg_stream_enable_disable (pg, s, is_enable);
+    }
+}
+
+/* Mark stream active or inactive. */
+void
+pg_stream_enable_disable (pg_main_t * pg, pg_stream_t * s, int want_enabled)
+{
+  vlib_main_t *vm;
+  vnet_main_t *vnm = vnet_get_main ();
+  pg_interface_t *pi = pool_elt_at_index (pg->interfaces, s->pg_if_index);
+
+  want_enabled = want_enabled != 0;
+
+  if (pg_stream_is_enabled (s) == want_enabled)
+    /* No change necessary. */
+    return;
+
+  if (want_enabled)
+    s->n_packets_generated = 0;
+
+  /* Toggle enabled flag. */
+  s->flags ^= PG_STREAM_FLAGS_IS_ENABLED;
+
+  ASSERT (!pool_is_free (pg->streams, s));
+
+  vec_validate (pg->enabled_streams, s->worker_index);
+  pg->enabled_streams[s->worker_index] =
+    clib_bitmap_set (pg->enabled_streams[s->worker_index], s - pg->streams,
+             want_enabled);
+
+  if (want_enabled)
+    {
+      vnet_hw_interface_set_flags (vnm, pi->hw_if_index,
+                   VNET_HW_INTERFACE_FLAG_LINK_UP);
+
+      vnet_sw_interface_set_flags (vnm, pi->sw_if_index,
+                   VNET_SW_INTERFACE_FLAG_ADMIN_UP);
+    }
+
+  if (vlib_num_workers ())
+    vm = vlib_get_worker_vlib_main (s->worker_index);
+  else
+    vm = vlib_get_main ();
+
+  vlib_node_set_state (vm, pg_input_node.index,
+               (clib_bitmap_is_zero
+            (pg->enabled_streams[s->worker_index]) ?
+            VLIB_NODE_STATE_DISABLED : VLIB_NODE_STATE_POLLING));
+
+  s->packet_accumulator = 0;
+  s->time_last_generate = 0;
 }
 ```
 
