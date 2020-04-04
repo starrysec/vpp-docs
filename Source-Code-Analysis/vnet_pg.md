@@ -50,6 +50,79 @@ doit:
 
   return 0;
 }
+
+void
+pg_enable_disable (u32 stream_index, int is_enable)
+{
+  pg_main_t *pg = &pg_main;
+  pg_stream_t *s;
+
+  if (stream_index == ~0)
+    {
+      /* No stream specified: enable/disable all streams. */
+      /* *INDENT-OFF* */
+        pool_foreach (s, pg->streams, ({
+            pg_stream_enable_disable (pg, s, is_enable);
+        }));
+    /* *INDENT-ON* */
+    }
+  else
+    {
+      /* enable/disable specified stream. */
+      s = pool_elt_at_index (pg->streams, stream_index);
+      pg_stream_enable_disable (pg, s, is_enable);
+    }
+}
+
+/* Mark stream active or inactive. */
+void
+pg_stream_enable_disable (pg_main_t * pg, pg_stream_t * s, int want_enabled)
+{
+  vlib_main_t *vm;
+  vnet_main_t *vnm = vnet_get_main ();
+  pg_interface_t *pi = pool_elt_at_index (pg->interfaces, s->pg_if_index);
+
+  want_enabled = want_enabled != 0;
+
+  if (pg_stream_is_enabled (s) == want_enabled)
+    /* No change necessary. */
+    return;
+
+  if (want_enabled)
+    s->n_packets_generated = 0;
+
+  /* Toggle enabled flag. */
+  s->flags ^= PG_STREAM_FLAGS_IS_ENABLED;
+
+  ASSERT (!pool_is_free (pg->streams, s));
+
+  vec_validate (pg->enabled_streams, s->worker_index);
+  pg->enabled_streams[s->worker_index] =
+    clib_bitmap_set (pg->enabled_streams[s->worker_index], s - pg->streams,
+             want_enabled);
+
+  if (want_enabled)
+    {
+      vnet_hw_interface_set_flags (vnm, pi->hw_if_index,
+                   VNET_HW_INTERFACE_FLAG_LINK_UP);
+
+      vnet_sw_interface_set_flags (vnm, pi->sw_if_index,
+                   VNET_SW_INTERFACE_FLAG_ADMIN_UP);
+    }
+
+  if (vlib_num_workers ())
+    vm = vlib_get_worker_vlib_main (s->worker_index);
+  else
+    vm = vlib_get_main ();
+
+  vlib_node_set_state (vm, pg_input_node.index,
+               (clib_bitmap_is_zero
+            (pg->enabled_streams[s->worker_index]) ?
+            VLIB_NODE_STATE_DISABLED : VLIB_NODE_STATE_POLLING));
+
+  s->packet_accumulator = 0;
+  s->time_last_generate = 0;
+}
 ```
 
 **create/delete stream**
