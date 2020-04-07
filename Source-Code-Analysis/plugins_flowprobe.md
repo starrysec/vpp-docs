@@ -1,5 +1,5 @@
 ## flowprobe
-flowprobe结合ipfix-export完成ipfix输出，其中ipfix-export输出tempalte数据包，flowprobe输出data数据包。
+flowprobe结合ipfix-export完成flowprobe插件的ipfix输出，其中ipfix-export分别回调flowprobe中定义的rewrite函数和data函数完成tempalte和data数据包构造和输出。
 
 ### 配置
 
