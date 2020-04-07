@@ -14,6 +14,7 @@
   - [vnet_ip](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vnet_ip.md)
   - [vnet_dpo](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vnet_dpo.md)
   - [vnet_feature](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vnet_feature.md)
+  - [vnet_classify](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vnet_classify.md)
 * 插件(Plugins)
   - [plugins_dpdk](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_dpdk.md)
   - [plugins_flowprobe](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_flowprobe.md)
