@@ -53,16 +53,16 @@ classify_table_command_fn (vlib_main_t * vm,
 	  // table中buckets（vnet_classify_bucket_t）个数个数
       else if (unformat (input, "buckets %d", &nbuckets))
 	  ;
-	  // 
+	  // skip match vector的前几个
       else if (unformat (input, "skip %d", &skip))
 	  ;
-	  // 
+	  // match vector数量
       else if (unformat (input, "match %d", &match))
 	  ;
 	  // 指定table index，未指定则为add，指定了则为update
       else if (unformat (input, "table %d", &table_index))
 	  ;
-	  // 
+	  // 指定匹配用的mask
       else if (unformat (input, "mask %U", unformat_classify_mask,
 			 &mask, &skip, &match))
 	  ;
