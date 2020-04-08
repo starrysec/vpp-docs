@@ -78,47 +78,61 @@ classify_table_command_fn (vlib_main_t * vm,
       else if (unformat (input, "miss-next %U", unformat_ip_next_index,
 			 &miss_next_index))
 	  ;
-	  // 
+	  // 以下miss-next都同上
       else if (unformat
 	    (input, "l2-input-miss-next %U", unformat_l2_input_next_index,
 	     &miss_next_index))
 	  ;
-	  // 
       else if (unformat
 	      (input, "l2-output-miss-next %U", unformat_l2_output_next_index,
 	     &miss_next_index))
 	  ;
-	  // 
       else if (unformat (input, "acl-miss-next %U", unformat_acl_next_index,
 			 &miss_next_index))
       ;
-	  // 
+	  /* option to use current node's packet payload
+         as the starting point from where packets are classified,
+         This option is only valid for L2/L3 input ACL for now.
+         0: by default, classify data from the buffer's start location
+         1: classify packets from VPP node’s current data pointer
+	  */
       else if (unformat (input, "current-data-flag %d", &current_data_flag))
 	  ;
-	  // 
+	  /* a signed value to shift the start location of the packet to be classified
+         For example, if input IP ACL node is used, L2 header’s first byte
+         can be accessible by configuring current_data_offset to -14
+         if there is no vlan tag.
+         This is valid only if current_data_flag is set to 1.
+	  */
       else if (unformat (input, "current-data-offset %d", &current_data_offset))
 	  ;
       else
 		break;
   }
 
+  // 添加，必须指定mask
   if (is_add && mask == 0 && table_index == ~0)
     return clib_error_return (0, "Mask required");
 
+  // 添加，必须指定skip count
   if (is_add && skip == ~0 && table_index == ~0)
     return clib_error_return (0, "skip count required");
 
+  // 添加，必须指定match count
   if (is_add && match == ~0 && table_index == ~0)
     return clib_error_return (0, "match count required");
 
+  // 删除，必须指定table index
   if (!is_add && table_index == ~0)
     return clib_error_return (0, "table index required for delete");
 
+  // 创建/删除分类表核心函数
   rv = vnet_classify_add_del_table (cm, mask, nbuckets, (u32) memory_size,
 				    skip, match, next_table_index,
 				    miss_next_index, &table_index,
 				    current_data_flag, current_data_offset,
 				    is_add, del_chain);
+  // 检查返回值，0-正确，其他-错误
   switch (rv)
   {
     case 0:
@@ -147,9 +161,11 @@ vnet_classify_add_del_table (vnet_classify_main_t * cm,
 {
   vnet_classify_table_t *t;
 
+  // 添加
   if (is_add)
-    {
-      if (*table_index == ~0)	/* add */
+  {
+    // 添加
+    if (*table_index == ~0)	/* add */
 	{
 	  if (memory_size == 0)
 	    return VNET_API_ERROR_INVALID_MEMORY_SIZE;
@@ -160,26 +176,71 @@ vnet_classify_add_del_table (vnet_classify_main_t * cm,
 	  if (match < 1 || match > 5)
 	    return VNET_API_ERROR_INVALID_VALUE;
 
+      // 创建分类表
 	  t = vnet_classify_new_table (cm, mask, nbuckets, memory_size,
 				       skip, match);
+	  // 赋值
 	  t->next_table_index = next_table_index;
 	  t->miss_next_index = miss_next_index;
 	  t->current_data_flag = current_data_flag;
 	  t->current_data_offset = current_data_offset;
+	  // 获取分类表索引
 	  *table_index = t - cm->tables;
 	}
-      else			/* update */
+	// 更新
+    else			/* update */
 	{
 	  vnet_classify_main_t *cm = &vnet_classify_main;
+	  // 根据table index获取table
 	  t = pool_elt_at_index (cm->tables, *table_index);
-
+	  // 赋值
 	  t->next_table_index = next_table_index;
 	}
-      return 0;
-    }
+    return 0;
+  }
 
+  // 删除
   vnet_classify_delete_table_index (cm, *table_index, del_chain);
   return 0;
+}
+
+vnet_classify_table_t *
+vnet_classify_new_table (vnet_classify_main_t * cm,
+			 u8 * mask, u32 nbuckets, u32 memory_size,
+			 u32 skip_n_vectors, u32 match_n_vectors)
+{
+  vnet_classify_table_t *t;
+  void *oldheap;
+
+  nbuckets = 1 << (max_log2 (nbuckets));
+
+  pool_get_aligned (cm->tables, t, CLIB_CACHE_LINE_BYTES);
+  clib_memset (t, 0, sizeof (*t));
+
+  vec_validate_aligned (t->mask, match_n_vectors - 1, sizeof (u32x4));
+  clib_memcpy_fast (t->mask, mask, match_n_vectors * sizeof (u32x4));
+
+  t->next_table_index = ~0;
+  t->nbuckets = nbuckets;
+  t->log2_nbuckets = max_log2 (nbuckets);
+  t->match_n_vectors = match_n_vectors;
+  t->skip_n_vectors = skip_n_vectors;
+  t->entries_per_page = 2;
+
+#if USE_DLMALLOC == 0
+  t->mheap = mheap_alloc (0 /* use VM */ , memory_size);
+#else
+  t->mheap = create_mspace (memory_size, 1 /* locked */ );
+  /* classifier requires the memory to be contiguous, so can not expand. */
+  mspace_disable_expand (t->mheap);
+#endif
+
+  vec_validate_aligned (t->buckets, nbuckets - 1, CLIB_CACHE_LINE_BYTES);
+  oldheap = clib_mem_set_heap (t->mheap);
+
+  clib_spinlock_init (&t->writer_lock);
+  clib_mem_set_heap (oldheap);
+  return (t);
 }
 ```
 
