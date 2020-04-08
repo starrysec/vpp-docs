@@ -288,7 +288,7 @@ classify_session_command_fn (vlib_main_t * vm,
   int i, rv;
 
   while (unformat_check_input (input) != UNFORMAT_END_OF_INPUT)
-    {
+  {
       if (unformat (input, "del"))
 	is_add = 0;
       else if (unformat (input, "hit-next %U", unformat_ip_next_index,
@@ -338,7 +338,7 @@ classify_session_command_fn (vlib_main_t * vm,
 	}
     found_opaque:
       ;
-    }
+  }
 
   if (table_index == ~0)
     return clib_error_return (0, "Table index required");
@@ -352,7 +352,7 @@ classify_session_command_fn (vlib_main_t * vm,
 				      action, metadata, is_add);
 
   switch (rv)
-    {
+  {
     case 0:
       break;
 
@@ -360,7 +360,7 @@ classify_session_command_fn (vlib_main_t * vm,
       return clib_error_return (0,
 				"vnet_classify_add_del_session returned %d",
 				rv);
-    }
+  }
 
   return 0;
 }
@@ -456,7 +456,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
 
   /* First elt in the bucket? */
   if (b->offset == 0)
-    {
+  {
       if (is_add == 0)
 	{
 	  rv = -1;
@@ -476,7 +476,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
       t->active_elements++;
 
       goto unlock;
-    }
+  }
 
   make_working_copy (t, b);
 
@@ -484,13 +484,13 @@ vnet_classify_add_del (vnet_classify_table_t * t,
   value_index = hash & ((1 << t->saved_bucket.log2_pages) - 1);
   limit = t->entries_per_page;
   if (PREDICT_FALSE (b->linear_search))
-    {
+  {
       value_index = 0;
       limit *= (1 << b->log2_pages);
-    }
+  }
 
   if (is_add)
-    {
+  {
       /*
        * For obvious (in hindsight) reasons, see if we're supposed to
        * replace an existing key, then look for an empty slot.
@@ -532,9 +532,9 @@ vnet_classify_add_del (vnet_classify_table_t * t,
 	    }
 	}
       /* no room at the inn... split case... */
-    }
+  }
   else
-    {
+  {
       for (i = 0; i < limit; i++)
 	{
 	  v = vnet_classify_entry_at_index (t, save_v, value_index + i);
@@ -556,7 +556,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
       rv = -3;
       b->as_u64 = t->saved_bucket.as_u64;
       goto unlock;
-    }
+  }
 
   old_log2_pages = t->saved_bucket.log2_pages;
   new_log2_pages = old_log2_pages + 1;
@@ -570,7 +570,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
   new_v = split_and_rehash (t, working_copy, old_log2_pages, new_log2_pages);
 
   if (new_v == 0)
-    {
+  {
     try_resplit:
       resplit_once = 1;
       new_log2_pages++;
@@ -591,7 +591,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
 	    t->linear_buckets++;
 	  mark_bucket_linear = 1;
 	}
-    }
+  }
 
   /* Try to add the new entry */
   save_new_v = new_v;
@@ -605,13 +605,13 @@ vnet_classify_add_del (vnet_classify_table_t * t,
 
   limit = t->entries_per_page;
   if (mark_bucket_linear)
-    {
+  {
       limit *= (1 << new_log2_pages);
       new_hash = 0;
-    }
+  }
 
   for (i = 0; i < limit; i++)
-    {
+  {
       new_v = vnet_classify_entry_at_index (t, save_new_v, new_hash + i);
 
       if (vnet_classify_entry_is_free (new_v))
@@ -623,7 +623,7 @@ vnet_classify_add_del (vnet_classify_table_t * t,
 
 	  goto expand_ok;
 	}
-    }
+  }
   /* Crap. Try again */
   vnet_classify_entry_free (t, save_new_v, new_log2_pages);
 
