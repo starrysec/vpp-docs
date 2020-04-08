@@ -212,14 +212,20 @@ vnet_classify_new_table (vnet_classify_main_t * cm,
   vnet_classify_table_t *t;
   void *oldheap;
 
+  // 规格化nbuckets为8的整数倍
   nbuckets = 1 << (max_log2 (nbuckets));
 
+  // 从内存池申请分类表
   pool_get_aligned (cm->tables, t, CLIB_CACHE_LINE_BYTES);
+  // 初始化table内存
   clib_memset (t, 0, sizeof (*t));
 
+  // Make sure vector is long enough for given index(no header, specified alignment)
   vec_validate_aligned (t->mask, match_n_vectors - 1, sizeof (u32x4));
+  // Copy Mask, Mask to apply after skipping N vectors
   clib_memcpy_fast (t->mask, mask, match_n_vectors * sizeof (u32x4));
 
+  // 初始化table各字段
   t->next_table_index = ~0;
   t->nbuckets = nbuckets;
   t->log2_nbuckets = max_log2 (nbuckets);
@@ -227,6 +233,7 @@ vnet_classify_new_table (vnet_classify_main_t * cm,
   t->skip_n_vectors = skip_n_vectors;
   t->entries_per_page = 2;
 
+  // 申请堆内存
 #if USE_DLMALLOC == 0
   t->mheap = mheap_alloc (0 /* use VM */ , memory_size);
 #else
@@ -235,10 +242,13 @@ vnet_classify_new_table (vnet_classify_main_t * cm,
   mspace_disable_expand (t->mheap);
 #endif
 
+  // Make sure vector is long enough for given index(no header, specified alignment)
   vec_validate_aligned (t->buckets, nbuckets - 1, CLIB_CACHE_LINE_BYTES);
+  // set per cpu new heap, return old heap.
   oldheap = clib_mem_set_heap (t->mheap);
-
+  // 给spinlock申请内存
   clib_spinlock_init (&t->writer_lock);
+  // reset old heap.
   clib_mem_set_heap (oldheap);
   return (t);
 }
