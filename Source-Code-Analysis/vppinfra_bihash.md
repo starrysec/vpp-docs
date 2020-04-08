@@ -10,6 +10,9 @@ bihash(Bounded-index extensible hashing)：有界索引可扩展哈希，对于�
 
 在查找时，首先使用log2_nbuckets计算h(k)来选择桶，然后从桶中找到页面的起始位置，最后使用log2_pages从h(k)计算页面的偏移量，其中将包含要查找的key/value对。
 
+* [bihash参考1](https://aijishu.com/a/1060000000017558)
+* [bihash参考2](https://blog.csdn.net/xftony/article/details/80535717)
+
 ### 基本结构
 
 ```

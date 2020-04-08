@@ -212,7 +212,7 @@ vnet_classify_new_table (vnet_classify_main_t * cm,
   vnet_classify_table_t *t;
   void *oldheap;
 
-  // 规格化nbuckets为8的整数倍
+  // 规格化nbuckets为2的整数倍
   nbuckets = 1 << (max_log2 (nbuckets));
 
   // 从内存池申请分类表
@@ -258,6 +258,396 @@ vnet_classify_new_table (vnet_classify_main_t * cm,
 
 ### 分类会话
 分类会话（classify session）即分类规则，规则被添加到指定的分类表中。
+
+#### 创建/删除分类规则
+```
+VLIB_CLI_COMMAND (classify_session_command, static) = {
+    .path = "classify session",
+    .short_help =
+    "classify session [hit-next|l2-input-hit-next|l2-output-hit-next|"
+    "acl-hit-next <next_index>|policer-hit-next <policer_name>]"
+    "\n table-index <nn> match [hex] [l2] [l3 ip4] [opaque-index <index>]"
+    "\n [action set-ip4-fib-id|set-ip6-fib-id|set-sr-policy-index <n>] [del]",
+    .function = classify_session_command_fn,
+};
+
+static clib_error_t *
+classify_session_command_fn (vlib_main_t * vm,
+			     unformat_input_t * input,
+			     vlib_cli_command_t * cmd)
+{
+  vnet_classify_main_t *cm = &vnet_classify_main;
+  int is_add = 1;
+  u32 table_index = ~0;
+  u32 hit_next_index = ~0;
+  u64 opaque_index = ~0;
+  u8 *match = 0;
+  i32 advance = 0;
+  u32 action = 0;
+  u32 metadata = 0;
+  int i, rv;
+
+  while (unformat_check_input (input) != UNFORMAT_END_OF_INPUT)
+    {
+      if (unformat (input, "del"))
+	is_add = 0;
+      else if (unformat (input, "hit-next %U", unformat_ip_next_index,
+			 &hit_next_index))
+	;
+      else
+	if (unformat
+	    (input, "l2-input-hit-next %U", unformat_l2_input_next_index,
+	     &hit_next_index))
+	;
+      else
+	if (unformat
+	    (input, "l2-output-hit-next %U", unformat_l2_output_next_index,
+	     &hit_next_index))
+	;
+      else if (unformat (input, "acl-hit-next %U", unformat_acl_next_index,
+			 &hit_next_index))
+	;
+      else if (unformat (input, "policer-hit-next %U",
+			 unformat_policer_next_index, &hit_next_index))
+	;
+      else if (unformat (input, "opaque-index %lld", &opaque_index))
+	;
+      else if (unformat (input, "match %U", unformat_classify_match,
+			 cm, &match, table_index))
+	;
+      else if (unformat (input, "advance %d", &advance))
+	;
+      else if (unformat (input, "table-index %d", &table_index))
+	;
+      else if (unformat (input, "action set-ip4-fib-id %d", &metadata))
+	action = 1;
+      else if (unformat (input, "action set-ip6-fib-id %d", &metadata))
+	action = 2;
+      else if (unformat (input, "action set-sr-policy-index %d", &metadata))
+	action = 3;
+      else
+	{
+	  /* Try registered opaque-index unformat fns */
+	  for (i = 0; i < vec_len (cm->unformat_opaque_index_fns); i++)
+	    {
+	      if (unformat (input, "%U", cm->unformat_opaque_index_fns[i],
+			    &opaque_index))
+		goto found_opaque;
+	    }
+	  break;
+	}
+    found_opaque:
+      ;
+    }
+
+  if (table_index == ~0)
+    return clib_error_return (0, "Table index required");
+
+  if (is_add && match == 0)
+    return clib_error_return (0, "Match value required");
+
+  rv = vnet_classify_add_del_session (cm, table_index, match,
+				      hit_next_index,
+				      opaque_index, advance,
+				      action, metadata, is_add);
+
+  switch (rv)
+    {
+    case 0:
+      break;
+
+    default:
+      return clib_error_return (0,
+				"vnet_classify_add_del_session returned %d",
+				rv);
+    }
+
+  return 0;
+}
+
+int
+vnet_classify_add_del_session (vnet_classify_main_t * cm,
+			       u32 table_index,
+			       u8 * match,
+			       u32 hit_next_index,
+			       u32 opaque_index,
+			       i32 advance,
+			       u8 action, u32 metadata, int is_add)
+{
+  vnet_classify_table_t *t;
+  vnet_classify_entry_5_t _max_e __attribute__ ((aligned (16)));
+  vnet_classify_entry_t *e;
+  int i, rv;
+
+  if (pool_is_free_index (cm->tables, table_index))
+    return VNET_API_ERROR_NO_SUCH_TABLE;
+
+  t = pool_elt_at_index (cm->tables, table_index);
+
+  e = (vnet_classify_entry_t *) & _max_e;
+  e->next_index = hit_next_index;
+  e->opaque_index = opaque_index;
+  e->advance = advance;
+  e->hits = 0;
+  e->last_heard = 0;
+  e->flags = 0;
+  e->action = action;
+  if (e->action == CLASSIFY_ACTION_SET_IP4_FIB_INDEX)
+    e->metadata = fib_table_find_or_create_and_lock (FIB_PROTOCOL_IP4,
+						     metadata,
+						     FIB_SOURCE_CLASSIFY);
+  else if (e->action == CLASSIFY_ACTION_SET_IP6_FIB_INDEX)
+    e->metadata = fib_table_find_or_create_and_lock (FIB_PROTOCOL_IP6,
+						     metadata,
+						     FIB_SOURCE_CLASSIFY);
+  else if (e->action == CLASSIFY_ACTION_SET_METADATA)
+    e->metadata = metadata;
+  else
+    e->metadata = 0;
+
+  /* Copy key data, honoring skip_n_vectors */
+  clib_memcpy_fast (&e->key, match + t->skip_n_vectors * sizeof (u32x4),
+		    t->match_n_vectors * sizeof (u32x4));
+
+  /* Clear don't-care bits; likely when dynamically creating sessions */
+  for (i = 0; i < t->match_n_vectors; i++)
+    e->key[i] &= t->mask[i];
+
+  rv = vnet_classify_add_del (t, e, is_add);
+
+  vnet_classify_entry_release_resource (e);
+
+  if (rv)
+    return VNET_API_ERROR_NO_SUCH_ENTRY;
+  return 0;
+}
+
+int
+vnet_classify_add_del (vnet_classify_table_t * t,
+		       vnet_classify_entry_t * add_v, int is_add)
+{
+  u32 bucket_index;
+  vnet_classify_bucket_t *b, tmp_b;
+  vnet_classify_entry_t *v, *new_v, *save_new_v, *working_copy, *save_v;
+  u32 value_index;
+  int rv = 0;
+  int i;
+  u64 hash, new_hash;
+  u32 limit;
+  u32 old_log2_pages, new_log2_pages;
+  u32 thread_index = vlib_get_thread_index ();
+  u8 *key_minus_skip;
+  int resplit_once = 0;
+  int mark_bucket_linear;
+
+  ASSERT ((add_v->flags & VNET_CLASSIFY_ENTRY_FREE) == 0);
+
+  key_minus_skip = (u8 *) add_v->key;
+  key_minus_skip -= t->skip_n_vectors * sizeof (u32x4);
+
+  hash = vnet_classify_hash_packet (t, key_minus_skip);
+
+  bucket_index = hash & (t->nbuckets - 1);
+  b = &t->buckets[bucket_index];
+
+  hash >>= t->log2_nbuckets;
+
+  clib_spinlock_lock (&t->writer_lock);
+
+  /* First elt in the bucket? */
+  if (b->offset == 0)
+    {
+      if (is_add == 0)
+	{
+	  rv = -1;
+	  goto unlock;
+	}
+
+      v = vnet_classify_entry_alloc (t, 0 /* new_log2_pages */ );
+      clib_memcpy_fast (v, add_v, sizeof (vnet_classify_entry_t) +
+			t->match_n_vectors * sizeof (u32x4));
+      v->flags &= ~(VNET_CLASSIFY_ENTRY_FREE);
+      vnet_classify_entry_claim_resource (v);
+
+      tmp_b.as_u64 = 0;
+      tmp_b.offset = vnet_classify_get_offset (t, v);
+
+      b->as_u64 = tmp_b.as_u64;
+      t->active_elements++;
+
+      goto unlock;
+    }
+
+  make_working_copy (t, b);
+
+  save_v = vnet_classify_get_entry (t, t->saved_bucket.offset);
+  value_index = hash & ((1 << t->saved_bucket.log2_pages) - 1);
+  limit = t->entries_per_page;
+  if (PREDICT_FALSE (b->linear_search))
+    {
+      value_index = 0;
+      limit *= (1 << b->log2_pages);
+    }
+
+  if (is_add)
+    {
+      /*
+       * For obvious (in hindsight) reasons, see if we're supposed to
+       * replace an existing key, then look for an empty slot.
+       */
+
+      for (i = 0; i < limit; i++)
+	{
+	  v = vnet_classify_entry_at_index (t, save_v, value_index + i);
+
+	  if (!memcmp
+	      (v->key, add_v->key, t->match_n_vectors * sizeof (u32x4)))
+	    {
+	      clib_memcpy_fast (v, add_v, sizeof (vnet_classify_entry_t) +
+				t->match_n_vectors * sizeof (u32x4));
+	      v->flags &= ~(VNET_CLASSIFY_ENTRY_FREE);
+	      vnet_classify_entry_claim_resource (v);
+
+	      CLIB_MEMORY_BARRIER ();
+	      /* Restore the previous (k,v) pairs */
+	      b->as_u64 = t->saved_bucket.as_u64;
+	      goto unlock;
+	    }
+	}
+      for (i = 0; i < limit; i++)
+	{
+	  v = vnet_classify_entry_at_index (t, save_v, value_index + i);
+
+	  if (vnet_classify_entry_is_free (v))
+	    {
+	      clib_memcpy_fast (v, add_v, sizeof (vnet_classify_entry_t) +
+				t->match_n_vectors * sizeof (u32x4));
+	      v->flags &= ~(VNET_CLASSIFY_ENTRY_FREE);
+	      vnet_classify_entry_claim_resource (v);
+
+	      CLIB_MEMORY_BARRIER ();
+	      b->as_u64 = t->saved_bucket.as_u64;
+	      t->active_elements++;
+	      goto unlock;
+	    }
+	}
+      /* no room at the inn... split case... */
+    }
+  else
+    {
+      for (i = 0; i < limit; i++)
+	{
+	  v = vnet_classify_entry_at_index (t, save_v, value_index + i);
+
+	  if (!memcmp
+	      (v->key, add_v->key, t->match_n_vectors * sizeof (u32x4)))
+	    {
+	      vnet_classify_entry_release_resource (v);
+	      clib_memset (v, 0xff, sizeof (vnet_classify_entry_t) +
+			   t->match_n_vectors * sizeof (u32x4));
+	      v->flags |= VNET_CLASSIFY_ENTRY_FREE;
+
+	      CLIB_MEMORY_BARRIER ();
+	      b->as_u64 = t->saved_bucket.as_u64;
+	      t->active_elements--;
+	      goto unlock;
+	    }
+	}
+      rv = -3;
+      b->as_u64 = t->saved_bucket.as_u64;
+      goto unlock;
+    }
+
+  old_log2_pages = t->saved_bucket.log2_pages;
+  new_log2_pages = old_log2_pages + 1;
+  working_copy = t->working_copies[thread_index];
+
+  if (t->saved_bucket.linear_search)
+    goto linear_resplit;
+
+  mark_bucket_linear = 0;
+
+  new_v = split_and_rehash (t, working_copy, old_log2_pages, new_log2_pages);
+
+  if (new_v == 0)
+    {
+    try_resplit:
+      resplit_once = 1;
+      new_log2_pages++;
+
+      new_v = split_and_rehash (t, working_copy, old_log2_pages,
+				new_log2_pages);
+      if (new_v == 0)
+	{
+	mark_linear:
+	  new_log2_pages--;
+
+	linear_resplit:
+	  /* pinned collisions, use linear search */
+	  new_v = split_and_rehash_linear (t, working_copy, old_log2_pages,
+					   new_log2_pages);
+	  /* A new linear-search bucket? */
+	  if (!t->saved_bucket.linear_search)
+	    t->linear_buckets++;
+	  mark_bucket_linear = 1;
+	}
+    }
+
+  /* Try to add the new entry */
+  save_new_v = new_v;
+
+  key_minus_skip = (u8 *) add_v->key;
+  key_minus_skip -= t->skip_n_vectors * sizeof (u32x4);
+
+  new_hash = vnet_classify_hash_packet_inline (t, key_minus_skip);
+  new_hash >>= t->log2_nbuckets;
+  new_hash &= (1 << new_log2_pages) - 1;
+
+  limit = t->entries_per_page;
+  if (mark_bucket_linear)
+    {
+      limit *= (1 << new_log2_pages);
+      new_hash = 0;
+    }
+
+  for (i = 0; i < limit; i++)
+    {
+      new_v = vnet_classify_entry_at_index (t, save_new_v, new_hash + i);
+
+      if (vnet_classify_entry_is_free (new_v))
+	{
+	  clib_memcpy_fast (new_v, add_v, sizeof (vnet_classify_entry_t) +
+			    t->match_n_vectors * sizeof (u32x4));
+	  new_v->flags &= ~(VNET_CLASSIFY_ENTRY_FREE);
+	  vnet_classify_entry_claim_resource (new_v);
+
+	  goto expand_ok;
+	}
+    }
+  /* Crap. Try again */
+  vnet_classify_entry_free (t, save_new_v, new_log2_pages);
+
+  if (resplit_once)
+    goto mark_linear;
+  else
+    goto try_resplit;
+
+expand_ok:
+  tmp_b.log2_pages = new_log2_pages;
+  tmp_b.offset = vnet_classify_get_offset (t, save_new_v);
+  tmp_b.linear_search = mark_bucket_linear;
+
+  CLIB_MEMORY_BARRIER ();
+  b->as_u64 = tmp_b.as_u64;
+  t->active_elements++;
+  v = vnet_classify_get_entry (t, t->saved_bucket.offset);
+  vnet_classify_entry_free (t, v, old_log2_pages);
+
+unlock:
+  clib_spinlock_unlock (&t->writer_lock);
+  return rv;
+}
+```
 
 ### 在接口使能
 ### 在flow使能
