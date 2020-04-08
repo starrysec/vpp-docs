@@ -20,7 +20,7 @@ typedef struct clib_bihash_value
   {
 
     clib_bihash_kv kvp[BIHASH_KVP_PER_PAGE]; /**< the actual key/value pairs, default value is 4 */
-    clib_bihash_value *next_free;  /**< used when a KVP page (or block thereof) is on a freelist */
+    clib_bihash_value *next_free;            /**< used when a KVP page (or block thereof) is on a freelist */
   };
 } clib_bihash_value_t
 ```
@@ -47,15 +47,16 @@ typedef struct clib_bihash_value
 typedef struct
 {
   clib_bihash_bucket_t *buckets;  /**< Hash bucket vector, power-of-two in size */
-  volatile u32 *writer_lock;  /**< Writer lock, in its own cache line */
+  volatile u32 *writer_lock;      /**< Writer lock, in its own cache line */
     BVT (clib_bihash_value) ** working_copies;
-					    /**< Working copies (various sizes), to avoid locking against readers */
-  clib_bihash_bucket_t saved_bucket; /**< Saved bucket pointer */
-  u32 nbuckets;			     /**< Number of hash buckets */
-  u32 log2_nbuckets;		     /**< lg(nbuckets) */
-  u8 *name;			     /**< hash table name */
+					              /**< Working copies (various sizes), to avoid locking against readers */
+  clib_bihash_bucket_t saved_bucket; 
+                                  /**< Saved bucket pointer */
+  u32 nbuckets;			          /**< Number of hash buckets */
+  u32 log2_nbuckets;		      /**< lg(nbuckets) */
+  u8 *name;			              /**< hash table name */
     BVT (clib_bihash_value) ** freelists;
-				      /**< power of two freelist vector */
+				                  /**< power of two freelist vector */
   uword alloc_arena;		      /**< memory allocation arena  */
   uword alloc_arena_next;	      /**< first available mem chunk */
   uword alloc_arena_size;	      /**< size of the arena */
