@@ -87,3 +87,7 @@ https://wiki.fd.io/view/DMM
 ### HICN
 
 https://wiki.fd.io/view/HICN
+
+### VSAP
+
+https://wiki.fd.io/view/Project_Proposals/VSAP
