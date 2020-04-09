@@ -22,5 +22,7 @@
 * 基础设施(Vppinfra)
   - [vppinfra_tw_timer](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_tw_timer.md)
   - [vppinfra_bihash](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_bihash.md)
+* 基础库(Vlib)
+  - [vlib_node](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vlib_node.md)
 * [邻接(Adjacency)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Adjacency.md)
 * [路由(Route)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Route.md)
