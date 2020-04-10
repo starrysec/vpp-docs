@@ -19,6 +19,7 @@
   - [plugins_dpdk](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_dpdk.md)
   - [plugins_flowprobe](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_flowprobe.md)
   - [plugins_udpi](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_udpi.md)
+  - [plugins_lb](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/plugins_lb.md)
 * 基础设施(Vppinfra)
   - [vppinfra_tw_timer](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_tw_timer.md)
   - [vppinfra_bihash](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_bihash.md)
