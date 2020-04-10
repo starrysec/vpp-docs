@@ -257,3 +257,109 @@ dpo_copy (dpo_id_t *dst,
     dpo_unlock(&tmp);
 }
 ```
+
+### dpo初始化
+
+dpo初始化(dpo_module_init)时会调用具体的dpo初始化函数(xxx_dpo_module_init)，具体的dpo初始化函数中调用dpo_register或dpo_register_new_type注册自己到dpo。
+
+```
+VLIB_INIT_FUNCTION(dpo_module_init) =
+{
+    .runs_before = VLIB_INITS ("ip_main_init"),
+};
+
+static clib_error_t *
+dpo_module_init (vlib_main_t * vm)
+{
+    drop_dpo_module_init();
+    punt_dpo_module_init();
+    receive_dpo_module_init();
+    load_balance_module_init();
+    mpls_label_dpo_module_init();
+    classify_dpo_module_init();
+    lookup_dpo_module_init();
+    ip_null_dpo_module_init();
+    ip6_ll_dpo_module_init();
+    replicate_module_init();
+    interface_rx_dpo_module_init();
+    interface_tx_dpo_module_init();
+    mpls_disp_dpo_module_init();
+    dvr_dpo_module_init();
+    l3_proxy_dpo_module_init();
+    pw_cw_dpo_module_init();
+
+    return (NULL);
+}
+```
+
+### dpo注册
+
+**例子**
+
+```
+const static dpo_vft_t adj_nbr_dpo_vft = {
+    .dv_lock = adj_dpo_lock,
+    .dv_unlock = adj_dpo_unlock,
+    .dv_format = format_adj_nbr,
+    .dv_mem_show = adj_mem_show,
+    .dv_get_urpf = adj_dpo_get_urpf,
+};
+
+const static char* const * const nbr_nodes[DPO_PROTO_NUM] =
+{
+    [DPO_PROTO_IP4]  = nbr_ip4_nodes,
+    [DPO_PROTO_IP6]  = nbr_ip6_nodes,
+    [DPO_PROTO_MPLS] = nbr_mpls_nodes,
+    [DPO_PROTO_ETHERNET] = nbr_ethernet_nodes,
+};
+
+void
+adj_nbr_module_init (void)
+{
+    dpo_register(DPO_ADJACENCY, &adj_nbr_dpo_vft, nbr_nodes);
+}
+```
+
+```
+void
+dpo_register (dpo_type_t type, const dpo_vft_t *vft, const char * const * const * nodes)
+{
+    // nodes为存储协议和处理node的对应关系，参考例子
+
+    // 边界校验：dpo_vfts vector最大index为type
+    vec_validate(dpo_vfts, type);
+    // 给type类型赋vft
+    dpo_vfts[type] = *vft;
+    /* A function to get the next VLIB node given an instance
+     * of the DPO. If this is null, then the node's name MUST be
+     * retreiveable from the nodes names array passed in the register
+     * function
+     * /
+    if (NULL == dpo_vfts[type].dv_get_next_node)
+    {
+        dpo_vfts[type].dv_get_next_node = dpo_default_get_next_node;
+    }
+    // Signal on an interposed child that the parent has changed
+    if (NULL == dpo_vfts[type].dv_mk_interpose)
+    {
+        dpo_vfts[type].dv_mk_interpose = dpo_default_mk_interpose;
+    }
+
+    // 边界校验：dpo_nodes vector最大index为type
+    vec_validate(dpo_nodes, type);
+    // 给type类型赋nodes
+    dpo_nodes[type] = nodes;
+}
+
+dpo_type_t
+dpo_register_new_type (const dpo_vft_t *vft, const char * const * const * nodes)
+{
+    // The DPO type value that can be assigned to the next dynamic type registration.
+    dpo_type_t type = dpo_dynamic++;
+
+    dpo_register(type, vft, nodes);
+
+    return (type);
+}
+```
+
