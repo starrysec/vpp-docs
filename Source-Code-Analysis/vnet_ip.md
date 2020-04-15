@@ -969,4 +969,332 @@ ip4_rewrite_inline_with_gso (vlib_main_t * vm,
 
 ### ip4-local
 
+```
+VLIB_REGISTER_NODE (ip4_local_node) =
+{
+  .name = "ip4-local",
+  .vector_size = sizeof (u32),
+  .format_trace = format_ip4_forward_next_trace,
+  .n_next_nodes = IP_LOCAL_N_NEXT,
+  .next_nodes =
+  {
+    [IP_LOCAL_NEXT_DROP] = "ip4-drop",
+    [IP_LOCAL_NEXT_PUNT] = "ip4-punt",
+    [IP_LOCAL_NEXT_UDP_LOOKUP] = "ip4-udp-lookup",
+    [IP_LOCAL_NEXT_ICMP] = "ip4-icmp-input",
+    [IP_LOCAL_NEXT_REASSEMBLY] = "ip4-full-reassembly",
+  },
+};
+
+VLIB_NODE_FN (ip4_local_node) (vlib_main_t * vm, vlib_node_runtime_t * node,
+			       vlib_frame_t * frame)
+{
+  return ip4_local_inline (vm, node, frame, 1 /* head of feature arc */ );
+}
+```
+
+```
+static inline uword
+ip4_local_inline (vlib_main_t * vm,
+		  vlib_node_runtime_t * node,
+		  vlib_frame_t * frame, int head_of_feature_arc)
+{
+  u32 *from, n_left_from;
+  vlib_node_runtime_t *error_node =
+    vlib_node_get_runtime (vm, ip4_input_node.index);
+  u16 nexts[VLIB_FRAME_SIZE], *next;
+  vlib_buffer_t *bufs[VLIB_FRAME_SIZE], **b;
+  ip4_header_t *ip[2];
+  u8 error[2], pt[2];
+
+  ip4_local_last_check_t last_check = {
+    /*
+     * 0.0.0.0 can appear as the source address of an IP packet,
+     * as can any other address, hence the need to use the 'first'
+     * member to make sure the .lbi is initialised for the first
+     * packet.
+     */
+    .src = {.as_u32 = 0},
+    .lbi = ~0,
+    .error = IP4_ERROR_UNKNOWN_PROTOCOL,
+    .first = 1,
+  };
+
+  from = vlib_frame_vector_args (frame);
+  n_left_from = frame->n_vectors;
+
+  if (node->flags & VLIB_NODE_FLAG_TRACE)
+    ip4_forward_next_trace (vm, node, frame, VLIB_TX);
+
+  vlib_get_buffers (vm, from, bufs, n_left_from);
+  b = bufs;
+  next = nexts;
+
+  while (n_left_from >= 6)
+  {
+    u8 not_batch = 0;
+
+    /* Prefetch next iteration. */
+    {
+	  vlib_prefetch_buffer_header (b[4], LOAD);
+	  vlib_prefetch_buffer_header (b[5], LOAD);
+
+	  CLIB_PREFETCH (b[4]->data, CLIB_CACHE_LINE_BYTES, LOAD);
+	  CLIB_PREFETCH (b[5]->data, CLIB_CACHE_LINE_BYTES, LOAD);
+    }
+
+    error[0] = error[1] = IP4_ERROR_UNKNOWN_PROTOCOL;
+
+    ip[0] = vlib_buffer_get_current (b[0]);
+    ip[1] = vlib_buffer_get_current (b[1]);
+
+    vnet_buffer (b[0])->l3_hdr_offset = b[0]->current_data;
+    vnet_buffer (b[1])->l3_hdr_offset = b[1]->current_data;
+
+    /* Determine packet type and next node.
+     *
+     * The expectation is that all packets that are not L4 will skip
+     * checksums and source checks. */
+    // 决定数据包类型和next节点，next可能是重组、NAT、L4处理
+    pt[0] = ip4_local_classify (b[0], ip[0], &next[0]);
+    pt[1] = ip4_local_classify (b[1], ip[1], &next[1]);
+
+    not_batch = pt[0] ^ pt[1];
+
+    if (head_of_feature_arc == 0 || (pt[0] && not_batch == 0))
+	  goto skip_checks;
+
+    if (PREDICT_TRUE (not_batch == 0))
+	{
+      // 校验L4校验和
+	  ip4_local_check_l4_csum_x2 (vm, b, ip, error);
+      // 根据源地址查找fib
+      /* The checks are:
+       *  - the source is a recieve => it's from us => bogus, do this
+       *    first since it sets a different error code.
+       *  - uRPF check for any route to source - accept if passes.
+       *  - allow packets destined to the broadcast address from unknown sources */
+	  ip4_local_check_src_x2 (b, ip, &last_check, error);
+	}
+    else
+	{
+	  if (!pt[0])
+	  {
+	    ip4_local_check_l4_csum (vm, b[0], ip[0], &error[0]);
+	    ip4_local_check_src (b[0], ip[0], &last_check, &error[0]);
+	  }
+	  if (!pt[1])
+	  {
+	    ip4_local_check_l4_csum (vm, b[1], ip[1], &error[1]);
+	    ip4_local_check_src (b[1], ip[1], &last_check, &error[1]);
+	  }
+	}
+
+  skip_checks:
+
+    ip4_local_set_next_and_error (error_node, b[0], &next[0], error[0],
+				    head_of_feature_arc);
+    ip4_local_set_next_and_error (error_node, b[1], &next[1], error[1],
+				    head_of_feature_arc);
+
+    b += 2;
+    next += 2;
+    n_left_from -= 2;
+  }
+
+  while (n_left_from > 0)
+  {
+    error[0] = IP4_ERROR_UNKNOWN_PROTOCOL;
+
+    ip[0] = vlib_buffer_get_current (b[0]);
+    vnet_buffer (b[0])->l3_hdr_offset = b[0]->current_data;
+    pt[0] = ip4_local_classify (b[0], ip[0], &next[0]);
+
+    if (head_of_feature_arc == 0 || pt[0])
+	  goto skip_check;
+
+    ip4_local_check_l4_csum (vm, b[0], ip[0], &error[0]);
+    ip4_local_check_src (b[0], ip[0], &last_check, &error[0]);
+
+  skip_check:
+
+    ip4_local_set_next_and_error (error_node, b[0], &next[0], error[0],
+				    head_of_feature_arc);
+
+    b += 1;
+    next += 1;
+    n_left_from -= 1;
+  }
+
+  vlib_buffer_enqueue_to_next (vm, node, from, nexts, frame->n_vectors);
+  return frame->n_vectors;
+}
+```
+
 ### ip4-load-balance
+
+```
+VLIB_REGISTER_NODE (ip4_load_balance_node) =
+{
+  .name = "ip4-load-balance",
+  .vector_size = sizeof (u32),
+  .sibling_of = "ip4-lookup",
+  .format_trace = format_ip4_lookup_trace,
+};
+```
+
+```
+VLIB_NODE_FN (ip4_load_balance_node) (vlib_main_t * vm,
+				      vlib_node_runtime_t * node,
+				      vlib_frame_t * frame)
+{
+  vlib_combined_counter_main_t *cm = &load_balance_main.lbm_via_counters;
+  u32 n_left, *from;
+  u32 thread_index = vm->thread_index;
+  vlib_buffer_t *bufs[VLIB_FRAME_SIZE], **b = bufs;
+  u16 nexts[VLIB_FRAME_SIZE], *next;
+
+  from = vlib_frame_vector_args (frame);
+  n_left = frame->n_vectors;
+  next = nexts;
+
+  vlib_get_buffers (vm, from, bufs, n_left);
+
+  while (n_left >= 4)
+  {
+    const load_balance_t *lb0, *lb1;
+    const ip4_header_t *ip0, *ip1;
+    u32 lbi0, hc0, lbi1, hc1;
+    const dpo_id_t *dpo0, *dpo1;
+
+    /* Prefetch next iteration. */
+    {
+      vlib_prefetch_buffer_header (b[2], LOAD);
+      vlib_prefetch_buffer_header (b[3], LOAD);
+
+      CLIB_PREFETCH (b[2]->data, sizeof (ip0[0]), LOAD);
+      CLIB_PREFETCH (b[3]->data, sizeof (ip0[0]), LOAD);
+    }
+
+    ip0 = vlib_buffer_get_current (b[0]);
+    ip1 = vlib_buffer_get_current (b[1]);
+    lbi0 = vnet_buffer (b[0])->ip.adj_index[VLIB_TX];
+    lbi1 = vnet_buffer (b[1])->ip.adj_index[VLIB_TX];
+
+    lb0 = load_balance_get (lbi0);
+    lb1 = load_balance_get (lbi1);
+
+    /*
+     * this node is for via FIBs we can re-use the hash value from the
+     * to node if present.
+     * We don't want to use the same hash value at each level in the recursion
+     * graph as that would lead to polarisation
+     */
+    hc0 = hc1 = 0;
+
+    if (PREDICT_FALSE (lb0->lb_n_buckets > 1))
+	{
+	  if (PREDICT_TRUE (vnet_buffer (b[0])->ip.flow_hash))
+	  {
+	    hc0 = vnet_buffer (b[0])->ip.flow_hash =
+		  vnet_buffer (b[0])->ip.flow_hash >> 1;
+	  }
+	  else
+	  {
+	    hc0 = vnet_buffer (b[0])->ip.flow_hash =
+		  ip4_compute_flow_hash (ip0, lb0->lb_hash_config);
+	  }
+	  dpo0 = load_balance_get_fwd_bucket
+	    (lb0, (hc0 & (lb0->lb_n_buckets_minus_1)));
+	}
+    else
+	{
+	  dpo0 = load_balance_get_bucket_i (lb0, 0);
+	}
+    if (PREDICT_FALSE (lb1->lb_n_buckets > 1))
+	{
+	  if (PREDICT_TRUE (vnet_buffer (b[1])->ip.flow_hash))
+	  {
+	    hc1 = vnet_buffer (b[1])->ip.flow_hash =
+		  vnet_buffer (b[1])->ip.flow_hash >> 1;
+	  }
+	  else
+	  {
+	    hc1 = vnet_buffer (b[1])->ip.flow_hash =
+		  ip4_compute_flow_hash (ip1, lb1->lb_hash_config);
+	  }
+	  dpo1 = load_balance_get_fwd_bucket
+	    (lb1, (hc1 & (lb1->lb_n_buckets_minus_1)));
+	}
+     else
+	{
+	  dpo1 = load_balance_get_bucket_i (lb1, 0);
+	}
+
+    next[0] = dpo0->dpoi_next_node;
+    next[1] = dpo1->dpoi_next_node;
+
+    vnet_buffer (b[0])->ip.adj_index[VLIB_TX] = dpo0->dpoi_index;
+    vnet_buffer (b[1])->ip.adj_index[VLIB_TX] = dpo1->dpoi_index;
+
+    vlib_increment_combined_counter
+	  (cm, thread_index, lbi0, 1, vlib_buffer_length_in_chain (vm, b[0]));
+    vlib_increment_combined_counter
+	  (cm, thread_index, lbi1, 1, vlib_buffer_length_in_chain (vm, b[1]));
+
+    b += 2;
+    next += 2;
+    n_left -= 2;
+  }
+
+  while (n_left > 0)
+  {
+    const load_balance_t *lb0;
+    const ip4_header_t *ip0;
+    const dpo_id_t *dpo0;
+    u32 lbi0, hc0;
+
+    ip0 = vlib_buffer_get_current (b[0]);
+    lbi0 = vnet_buffer (b[0])->ip.adj_index[VLIB_TX];
+
+    lb0 = load_balance_get (lbi0);
+
+    hc0 = 0;
+    if (PREDICT_FALSE (lb0->lb_n_buckets > 1))
+	{
+	  if (PREDICT_TRUE (vnet_buffer (b[0])->ip.flow_hash))
+	  {
+	    hc0 = vnet_buffer (b[0])->ip.flow_hash =
+		  vnet_buffer (b[0])->ip.flow_hash >> 1;
+	  }
+	  else
+	  {
+	    hc0 = vnet_buffer (b[0])->ip.flow_hash =
+		  ip4_compute_flow_hash (ip0, lb0->lb_hash_config);
+	  }
+	  dpo0 = load_balance_get_fwd_bucket
+	    (lb0, (hc0 & (lb0->lb_n_buckets_minus_1)));
+	}
+    else
+	{
+	  dpo0 = load_balance_get_bucket_i (lb0, 0);
+	}
+
+    next[0] = dpo0->dpoi_next_node;
+    vnet_buffer (b[0])->ip.adj_index[VLIB_TX] = dpo0->dpoi_index;
+
+    vlib_increment_combined_counter
+	  (cm, thread_index, lbi0, 1, vlib_buffer_length_in_chain (vm, b[0]));
+
+    b += 1;
+    next += 1;
+    n_left -= 1;
+  }
+
+  vlib_buffer_enqueue_to_next (vm, node, from, nexts, frame->n_vectors);
+  if (node->flags & VLIB_NODE_FLAG_TRACE)
+    ip4_forward_next_trace (vm, node, frame, VLIB_TX);
+
+  return frame->n_vectors;
+}
+```
