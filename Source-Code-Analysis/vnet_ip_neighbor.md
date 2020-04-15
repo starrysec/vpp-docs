@@ -302,7 +302,9 @@ VLIB_CLI_COMMAND (show_ip6_neighbor_sorted_cmd_node, static) = {
 };
 ```
 
-### 
+### 处理（构造arp包）
+
+adj类型：nbr（arp目的ip是数据包目的ip），glean（arp目的ip是下一跳ip），midchain（隧道情形）。
 
 #### vnet/ip-neighbor/ip4_neighbor.c
 
@@ -363,6 +365,7 @@ ip4_arp_inline (vlib_main_t * vm,
   if (node->flags & VLIB_NODE_FLAG_TRACE)
     ip4_forward_next_trace (vm, node, frame, VLIB_TX);
 
+  // 初始化节流器随机种子
   seed = throttle_seed (&im->arp_throttle, thread_index, vlib_time_now (vm));
 
   from = vlib_frame_vector_args (frame);
@@ -385,6 +388,7 @@ ip4_arp_inline (vlib_main_t * vm,
 	  u64 r0;
 
 	  pi0 = from[0];
+      // 当前数据包
 	  p0 = vlib_get_buffer (vm, pi0);
 
 	  from += 1;
@@ -393,22 +397,33 @@ ip4_arp_inline (vlib_main_t * vm,
 	  to_next_drop += 1;
 	  n_left_to_next_drop -= 1;
 
+      /* Adjacency from destination IP address lookup [VLIB_TX].
+         Adjacency from source IP address lookup [VLIB_RX].
+         This gets set to ~0 until source lookup is performed. */
+      // 根据数据包目的地址，获取adj
 	  adj_index0 = vnet_buffer (p0)->ip.adj_index[VLIB_TX];
 	  adj0 = adj_get (adj_index0);
+      // 根据adj的rewrite头，获取tx接口索引
 	  sw_if_index0 = adj0->rewrite_header.sw_if_index;
 
+      // 来自ip4-glean节点的调用
 	  if (is_glean)
 	  {
 	      /* resolve the packet's destination */
+          // 取当前数据包的目的地址作为构造的arp包的目的地址
 	      ip4_header_t *ip0 = vlib_buffer_get_current (p0);
 	      resolve0 = ip0->dst_address;
+          // 取glean类型adj中包接收地址为构造的arp包的源地址，保证arp包发送后可以收到回包
 	      src0 = adj0->sub_type.glean.receive_addr.ip4;
 	  }
+      // 来自ip4-arp节点的调用
 	  else
 	  {
 	    /* resolve the incomplete adj */
+        // 取nbr类型adj的下一跳地址为构造的arp包的目的地址
 	    resolve0 = adj0->sub_type.nbr.next_hop.ip4;
 	    /* Src IP address in ARP header. */
+        // 取发送接口的ip地址为构造的arp包的源地址
 	    if (ip4_src_address_for_packet (lm, sw_if_index0, &src0))
 		{
 		  /* No source address available */
@@ -418,9 +433,11 @@ ip4_arp_inline (vlib_main_t * vm,
 	  }
 
 	  /* combine the address and interface for the hash key */
+      // 使用目的ip和发送接口构造hash key
 	  r0 = (u64) resolve0.data_u32 << 32;
 	  r0 |= sw_if_index0;
 
+      // 节流器检测，是否需要节流，防止发送大量arp
 	  if (throttle_check (&im->arp_throttle, thread_index, r0, seed))
 	  {
 	    p0->error = node->errors[IP4_ARP_ERROR_THROTTLED];
@@ -431,6 +448,7 @@ ip4_arp_inline (vlib_main_t * vm,
 	   * the adj has been updated to a rewrite but the node the DPO that got
 	   * us here hasn't - yet. no big deal. we'll drop while we wait.
 	   */
+      // ip4-lookup后的next节点，然后...待补充
 	  if (IP_LOOKUP_NEXT_REWRITE == adj0->lookup_next_index)
 	  {
 	    p0->error = node->errors[IP4_ARP_ERROR_RESOLVED];
@@ -441,6 +459,7 @@ ip4_arp_inline (vlib_main_t * vm,
 	   * Can happen if the control-plane is programming tables
 	   * with traffic flowing; at least that's today's lame excuse.
 	   */
+      // 校验状态：来自ip4-glean节点的调用lookup_next_index必须是IP_LOOKUP_NEXT_GLEAN，来自ip4-arp节点的调用lookup_next_index必须是IP_LOOKUP_NEXT_ARP
 	  if ((is_glean && adj0->lookup_next_index != IP_LOOKUP_NEXT_GLEAN)
 	      || (!is_glean && adj0->lookup_next_index != IP_LOOKUP_NEXT_ARP))
 	  {
@@ -453,9 +472,9 @@ ip4_arp_inline (vlib_main_t * vm,
 
 	  if (PREDICT_TRUE (NULL != b0))
 	  {
-	      /* copy the persistent fields from the original */
-	    clib_memcpy_fast (b0->opaque2, p0->opaque2,
-				sizeof (p0->opaque2));
+	    /* copy the persistent fields from the original */
+        // 把当前数据包的不透明数据拷贝给构造的arp包的不透明字段，私有数据有私用
+	    clib_memcpy_fast (b0->opaque2, p0->opaque2, sizeof (p0->opaque2));
 	    p0->error = node->errors[IP4_ARP_ERROR_REQUEST_SENT];
 	  }
 	  else
@@ -465,6 +484,7 @@ ip4_arp_inline (vlib_main_t * vm,
 	  }
 	}
 
+    // 丢弃当前frame
     vlib_put_next_frame (vm, node, IP4_ARP_NEXT_DROP, n_left_to_next_drop);
   }
 
