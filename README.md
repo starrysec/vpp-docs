@@ -92,7 +92,6 @@ VPP应用场景包括虚拟交换(vSwitchs)、虚拟路由(vRouters)、网关(Ga
   - [vppinfra_tw_timer](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_tw_timer.md)
   - [vppinfra_bihash](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vppinfra_bihash.md)
   - [vlib_node](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vlib_node.md)
-  - [邻接(Adjacency)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Adjacency.md)
   - [路由(Route)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Route.md)
 * [相关协议](https://github.com/penybai/vpp-docs/blob/master/Related-Protocols/Related-Protocols.md)
 * [关于](https://github.com/penybai/vpp-docs/blob/master/About/About.md)
