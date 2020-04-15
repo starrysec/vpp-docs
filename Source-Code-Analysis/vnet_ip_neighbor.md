@@ -413,7 +413,7 @@ ip4_arp_inline (vlib_main_t * vm,
           // 取当前数据包的目的地址作为构造的arp包的目的地址
 	      ip4_header_t *ip0 = vlib_buffer_get_current (p0);
 	      resolve0 = ip0->dst_address;
-          // 取glean类型adj中包接收地址为构造的arp包的源地址，保证arp包发送后可以收到回包，glean的receive_addr未理解清楚（本地地址前缀），待补充
+          // 取glean类型adj中包接收地址为构造的arp包的源地址，保证arp包发送后可以收到回包，glean的receive_addr未理解清楚（本地地址前缀或者空），待补充
 	      src0 = adj0->sub_type.glean.receive_addr.ip4;
 	  }
       // 来自ip4-arp节点的调用
