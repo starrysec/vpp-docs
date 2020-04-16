@@ -380,3 +380,81 @@ ip4_fib_table_entry_remove (ip4_fib_t *fib,
     fib->fib_entry_by_dst_address[len] = hash;
 }
 ```
+
+### 从fib更新转发路由到mtrie
+
+```
+void
+ip4_fib_table_fwding_dpo_update (ip4_fib_t *fib,
+				 const ip4_address_t *addr,
+				 u32 len,
+				 const dpo_id_t *dpo)
+{
+    ip4_fib_mtrie_route_add(&fib->mtrie, addr, len, dpo->dpoi_index);
+}
+
+void
+ip4_fib_mtrie_route_add (ip4_fib_mtrie_t * m,
+			 const ip4_address_t * dst_address,
+			 u32 dst_address_length, u32 adj_index)
+{
+  ip4_fib_mtrie_set_unset_leaf_args_t a;
+  ip4_main_t *im = &ip4_main;
+
+  /* Honor dst_address_length. Fib masks are in network byte order */
+  a.dst_address.as_u32 = (dst_address->as_u32 & im->fib_masks[dst_address_length]);
+  a.dst_address_length = dst_address_length;
+  a.adj_index = adj_index;
+
+  set_root_leaf (m, &a);
+}
+```
+
+### 从mtrie中移除转发路由
+
+```
+void
+ip4_fib_table_fwding_dpo_remove (ip4_fib_t *fib,
+				 const ip4_address_t *addr,
+				 u32 len,
+				 const dpo_id_t *dpo,
+                                 u32 cover_index)
+{
+    const fib_prefix_t *cover_prefix;
+    const dpo_id_t *cover_dpo;
+
+    /*
+     * We need to pass the MTRIE the LB index and address length of the
+     * covering prefix, so it can fill the plys with the correct replacement
+     * for the entry being removed
+     */
+    cover_prefix = fib_entry_get_prefix(cover_index);
+    cover_dpo = fib_entry_contribute_ip_forwarding(cover_index);
+
+    ip4_fib_mtrie_route_del(&fib->mtrie,
+                            addr, len, dpo->dpoi_index,
+                            cover_prefix->fp_len,
+                            cover_dpo->dpoi_index);
+}
+
+void
+ip4_fib_mtrie_route_del (ip4_fib_mtrie_t * m,
+			 const ip4_address_t * dst_address,
+			 u32 dst_address_length,
+			 u32 adj_index,
+			 u32 cover_address_length, u32 cover_adj_index)
+{
+  ip4_fib_mtrie_set_unset_leaf_args_t a;
+  ip4_main_t *im = &ip4_main;
+
+  /* Honor dst_address_length. Fib masks are in network byte order */
+  a.dst_address.as_u32 = (dst_address->as_u32 & im->fib_masks[dst_address_length]);
+  a.dst_address_length = dst_address_length;
+  a.adj_index = adj_index;
+  a.cover_adj_index = cover_adj_index;
+  a.cover_address_length = cover_address_length;
+
+  /* the top level ply is never removed */
+  unset_root_leaf (m, &a);
+}
+```
