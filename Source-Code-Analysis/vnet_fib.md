@@ -4,6 +4,7 @@
 其中表示FIB的结构体是fib_table_t，与协议无关。
 表示转发的结构体是ip4_fib_t，与协议相关。
 
+```
 /**
  * @brief IPv4 main type.
  *
@@ -25,6 +26,7 @@ typedef struct ip4_main_t
   
   // 其他成员省略
 } ip4_main_t;
+```
 
 ### fib_table_t
 
