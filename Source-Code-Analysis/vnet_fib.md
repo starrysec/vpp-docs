@@ -1,45 +1,33 @@
 ## FIB
 
-### ip4_fib_t
+在`vnet/ip/ip4.h`的ip4_main_t结构体定义了用于转发的MTries和全量FIBs。
+其中表示FIB的结构体是fib_table_t，与协议无关。
+表示转发的结构体是ip4_fib_t，与协议相关。
 
-**IPv4路由表**
-```
-/* The ‘non-forwarding’ ip4_fib_t contains all the entries in the table and, 
- * the ‘forwarding’ contains the entries that are matched against in the data-plane. 
- * The difference between the two sets are the entries that should not be matched in the data-plane. 
- * Each ip4_fib_t comprises an mtrie (for fast lookup in the data-plane) and a hash table per-prefix length (for lookup in the control plane). 
- * 
- * IPv6 also has the concept of forwarding and non-forwarding entries, 
- * however for IPv6 all the forwardind entries are stored in a single hash table (same goes for the non-forwarding). 
- * The key to the hash table includes the IPv6 table-id.
+/**
+ * @brief IPv4 main type.
+ *
+ * State of IPv4 VPP processing including:
+ * - FIBs
+ * - Feature indices used in feature topological sort
+ * - Feature node run time references
  */
-// IPv4路由表包括转发路由（数据平面用于匹配的树）和非转发路由（所有路由）
-typedef struct ip4_fib_t_
+
+typedef struct ip4_main_t
 {
-  /** Required for pool_get_aligned */
-  CLIB_CACHE_LINE_ALIGN_MARK(cacheline0);
+  ip_lookup_main_t lookup_main;
 
-  /**
-   * Mtrie for fast lookups. Hash is used to maintain overlapping prefixes.
-   * First member so it's in the first cacheline.
-   */
-  // 注意： the forwarding table is an mtrie.
-  ip4_fib_mtrie_t mtrie;
+  /** Vector of FIBs. */
+  struct fib_table_t_ *fibs;
 
-  /* Hash table for each prefix length mapping. */
-  // 注意： the non-forwarding table is an array of hash tables indexed by mask length.
-  uword *fib_entry_by_dst_address[33];
+  /** Vector of MTries. */
+  struct ip4_fib_t_ *v4_fibs;
+  
+  // 其他成员省略
+} ip4_main_t;
 
-  /* Table ID (hash key) for this FIB. */
-  u32 table_id;
+### fib_table_t
 
-  /* Index into FIB vector. */
-  u32 index;
-} ip4_fib_t;
-```
-![](ip4_fib_t.png)
-
-**协议无关的fib table**
 ```
 /**
  * @brief 
@@ -100,7 +88,43 @@ typedef struct fib_table_t_
 } fib_table_t;
 ```
 
-### 创建IPv4路由表
+### ip4_fib_t
+
+```
+/* The ‘non-forwarding’ ip4_fib_t contains all the entries in the table and, 
+ * the ‘forwarding’ contains the entries that are matched against in the data-plane. 
+ * The difference between the two sets are the entries that should not be matched in the data-plane. 
+ * Each ip4_fib_t comprises an mtrie (for fast lookup in the data-plane) and a hash table per-prefix length (for lookup in the control plane). 
+ * 
+ * IPv6 also has the concept of forwarding and non-forwarding entries, 
+ * however for IPv6 all the forwardind entries are stored in a single hash table (same goes for the non-forwarding). 
+ * The key to the hash table includes the IPv6 table-id.
+ */
+typedef struct ip4_fib_t_
+{
+  /** Required for pool_get_aligned */
+  CLIB_CACHE_LINE_ALIGN_MARK(cacheline0);
+
+  /**
+   * Mtrie for fast lookups. Hash is used to maintain overlapping prefixes.
+   * First member so it's in the first cacheline.
+   */
+  // 用于转发的mtrie树
+  ip4_fib_mtrie_t mtrie;
+
+  /* Hash table for each prefix length mapping. */
+  // 前缀长度->fib_table_t
+  uword *fib_entry_by_dst_address[33];
+
+  /* Table ID (hash key) for this FIB. */
+  u32 table_id;
+
+  /* Index into FIB vector. */
+  u32 index;
+} ip4_fib_t;
+```
+
+### 创建ipv4 fib table
 
 ```
 /**
@@ -126,9 +150,9 @@ static u32
 ip4_create_fib_with_table_id (u32 table_id,
                               fib_source_t src)
 {
-    // fib table
+    // FIB路由表
     fib_table_t *fib_table;
-    // ipv4 fib
+    // 用于转发的表
     ip4_fib_t *v4_fib;
     void *old_heap;
 
@@ -144,17 +168,18 @@ ip4_create_fib_with_table_id (u32 table_id,
 
     // which protocol this table servers.
     fib_table->ft_proto = FIB_PROTOCOL_IP4;
-    // 在fib vector的索引
+    // fib table index
     fib_table->ft_index = v4_fib->index = (fib_table - ip4_main.fibs);
 
     // Hash table mapping table id to fib index. ID space is not necessarily dense; index space is dense.
-    // key->table_id, value->fib_table->ft_index
+    // 设置key/value对：[table_id] -> [fib_table->ft_index]
     hash_set (ip4_main.fib_index_by_table_id, table_id, fib_table->ft_index);
     // 统一赋table id
     fib_table->ft_table_id = v4_fib->table_id = table_id;
     // 配置流hash计算方法，默认为5元组
     fib_table->ft_flow_hash_config = IP_FLOW_HASH_DEFAULT;
     
+    // per-source number of locks and totoal number of locks on the table
     fib_table_lock(fib_table->ft_index, FIB_PROTOCOL_IP4, src);
 
     // 初始化用于转发的mtrie树
@@ -175,13 +200,183 @@ ip4_create_fib_with_table_id (u32 table_id,
       prefix.fp_addr.ip4.data_u32 = clib_host_to_net_u32(prefix.fp_addr.ip4.data_u32);
 
       // 路由插入到fib table中
-      fib_table_entry_special_add(fib_table->ft_index,
-                    &prefix,
-                    ip4_specials[ii].ift_source,
-                    ip4_specials[ii].ift_flag);
+      fib_table_entry_special_add(fib_table->ft_index, &prefix, ip4_specials[ii].ift_source, ip4_specials[ii].ift_flag);
     }
 
-    // 返回table index
+    // 返回fib index
     return (fib_table->ft_index);
+}
+```
+
+### 销毁ipv4 fib table
+
+```
+void
+ip4_fib_table_destroy (u32 fib_index)
+{
+    // 根据fib index获取fib table
+    fib_table_t *fib_table = pool_elt_at_index(ip4_main.fibs, fib_index);
+    // 根据fib index获取用于转发的mtries
+    ip4_fib_t *v4_fib = pool_elt_at_index(ip4_main.v4_fibs, fib_index);
+    u32 *n_locks;
+    int ii;
+
+    /*
+     * remove all the specials we added when the table was created.
+     * In reverse order so the default route is last.
+     */
+    for (ii = ARRAY_LEN(ip4_specials) - 1; ii >= 0; ii--)
+    {
+	  fib_prefix_t prefix = ip4_specials[ii].ift_prefix;
+
+	  prefix.fp_addr.ip4.data_u32 =
+	    clib_host_to_net_u32(prefix.fp_addr.ip4.data_u32);
+
+      // 从fib table中删除路由
+	  fib_table_entry_special_remove(fib_table->ft_index,
+				       &prefix,
+				       ip4_specials[ii].ift_source);
+    }
+
+    /*
+     * validate no more routes.
+     */
+#ifdef CLIB_DEBUG
+    if (0 != fib_table->ft_total_route_counts)
+        fib_table_assert_empty(fib_table);
+#endif
+
+    vec_foreach(n_locks, fib_table->ft_src_route_counts)
+    {
+	  ASSERT(0 == *n_locks);
+    }
+
+    if (~0 != fib_table->ft_table_id)
+    {
+      // 移除key/value对：[table_id] -> [fib_table->ft_index]
+	  hash_unset (ip4_main.fib_index_by_table_id, fib_table->ft_table_id);
+    }
+
+    vec_free(fib_table->ft_src_route_counts);
+    // 释放转发mtrie的资源
+    ip4_mtrie_free(&v4_fib->mtrie);
+
+    // 删除fib和转发mtrie
+    pool_put(ip4_main.v4_fibs, v4_fib);
+    pool_put(ip4_main.fibs, fib_table);
+}
+```
+
+### 在ipv4 fib table中查找
+
+```
+/*
+ * ip4_fib_table_lookup
+ *
+ * Longest prefix match
+ */
+fib_node_index_t
+ip4_fib_table_lookup (const ip4_fib_t *fib,
+		      const ip4_address_t *addr,
+		      u32 len)
+{
+    uword * hash, * result;
+    i32 mask_len;
+    u32 key;
+
+    // 从转发mtries中查找
+    for (mask_len = len; mask_len >= 0; mask_len--)
+    {
+      // 根据mask len获取hash表
+	  hash = fib->fib_entry_by_dst_address[mask_len];
+      // 构造在hash中查询的key（有地址和掩码构成）
+	  key = (addr->data_u32 & ip4_main.fib_masks[mask_len]);
+
+      // 在hash表中查找
+	  result = hash_get (hash, key);
+
+	  if (NULL != result) {
+	    return (result[0]);
+	  }
+    }
+    return (FIB_NODE_INDEX_INVALID);
+}
+```
+
+### 插入ipv4 fib entry
+
+```
+void
+ip4_fib_table_entry_insert (ip4_fib_t *fib,
+			    const ip4_address_t *addr,
+			    u32 len,
+			    fib_node_index_t fib_entry_index)
+{
+    uword * hash, * result;
+    u32 key;
+
+    // 由地址和掩码构成的key
+    key = (addr->data_u32 & ip4_main.fib_masks[len]);
+    // 根据前缀长度，获取hash表
+    hash = fib->fib_entry_by_dst_address[len];
+    result = hash_get (hash, key);
+
+    // 未找到，新建entry
+    if (NULL == result) {
+	  /*
+	   * adding a new entry
+	   */
+      uword *old_heap;
+      old_heap = clib_mem_set_heap (ip4_main.mtrie_mheap);
+
+	  if (NULL == hash) {
+	    hash = hash_create (32 /* elts */, sizeof (uword));
+	    hash_set_flags (hash, HASH_FLAG_NO_AUTO_SHRINK);
+	  }
+      // 把key和entry对放到hash表中
+	  hash = hash_set(hash, key, fib_entry_index);
+	  fib->fib_entry_by_dst_address[len] = hash;
+      clib_mem_set_heap (old_heap);
+    }
+    else
+    {
+	  ASSERT(0);
+    }
+}
+```
+
+### 删除ipv4 fib entry
+
+```
+void
+ip4_fib_table_entry_remove (ip4_fib_t *fib,
+			    const ip4_address_t *addr,
+			    u32 len)
+{
+    uword * hash, * result;
+    u32 key;
+
+    key = (addr->data_u32 & ip4_main.fib_masks[len]);
+    hash = fib->fib_entry_by_dst_address[len];
+    result = hash_get (hash, key);
+
+    if (NULL == result)
+    {
+	/*
+	 * removing a non-existent entry. i'll allow it.
+	 */
+    }
+    else 
+    {
+      uword *old_heap;
+
+      old_heap = clib_mem_set_heap (ip4_main.mtrie_mheap);
+      // hash表中删除
+	  hash_unset(hash, key);
+      clib_mem_set_heap (old_heap);
+    }
+
+    // 感觉是多余的，why???
+    fib->fib_entry_by_dst_address[len] = hash;
 }
 ```
