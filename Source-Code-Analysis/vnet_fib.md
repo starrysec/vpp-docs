@@ -2,8 +2,18 @@
 
 ### ip4_fib_t
 
-** ipv4 fib**
+**IPv4路由表**
 ```
+/* The ‘non-forwarding’ ip4_fib_t contains all the entries in the table and, 
+ * the ‘forwarding’ contains the entries that are matched against in the data-plane. 
+ * The difference between the two sets are the entries that should not be matched in the data-plane. 
+ * Each ip4_fib_t comprises an mtrie (for fast lookup in the data-plane) and a hash table per-prefix length (for lookup in the control plane). 
+ * 
+ * IPv6 also has the concept of forwarding and non-forwarding entries, 
+ * however for IPv6 all the forwardind entries are stored in a single hash table (same goes for the non-forwarding). 
+ * The key to the hash table includes the IPv6 table-id.
+ */
+// IPv4路由表包括转发路由（数据平面用于匹配的树）和非转发路由（所有路由）
 typedef struct ip4_fib_t_
 {
   /** Required for pool_get_aligned */
@@ -13,9 +23,11 @@ typedef struct ip4_fib_t_
    * Mtrie for fast lookups. Hash is used to maintain overlapping prefixes.
    * First member so it's in the first cacheline.
    */
+  // 注意： the forwarding table is an mtrie.
   ip4_fib_mtrie_t mtrie;
 
   /* Hash table for each prefix length mapping. */
+  // 注意： the non-forwarding table is an array of hash tables indexed by mask length.
   uword *fib_entry_by_dst_address[33];
 
   /* Table ID (hash key) for this FIB. */
@@ -25,7 +37,9 @@ typedef struct ip4_fib_t_
   u32 index;
 } ip4_fib_t;
 ```
-** 协议无关的fib table **
+![](ip4_fib_t.png)
+
+**协议无关的fib table**
 ```
 /**
  * @brief 
@@ -86,7 +100,7 @@ typedef struct fib_table_t_
 } fib_table_t;
 ```
 
-### create fib table
+### 创建FIB表
 
 ```
 /**
@@ -106,7 +120,7 @@ extern u32 ip4_fib_table_find_or_create_and_lock(u32 table_id,
 extern u32 ip4_fib_table_create_and_lock(fib_source_t src);
 ```
 
-** 核心函数： **
+**核心函数**
 ```
 static u32
 ip4_create_fib_with_table_id (u32 table_id,
@@ -118,7 +132,7 @@ ip4_create_fib_with_table_id (u32 table_id,
     ip4_fib_t *v4_fib;
     void *old_heap;
 
-    // 从fib table的vector中申请一个fib table
+    // 从fib池中申请一个fib table
     pool_get(ip4_main.fibs, fib_table);
     clib_memset(fib_table, 0, sizeof(*fib_table));
 
@@ -131,14 +145,13 @@ ip4_create_fib_with_table_id (u32 table_id,
 
     // which protocol this table servers.
     fib_table->ft_proto = FIB_PROTOCOL_IP4;
-    // 
+    // 在fib vector的索引
     fib_table->ft_index = v4_fib->index = (fib_table - ip4_main.fibs);
 
+    // Hash table mapping table id to fib index. ID space is not necessarily dense; index space is dense.
     hash_set (ip4_main.fib_index_by_table_id, table_id, fib_table->ft_index);
-
-    fib_table->ft_table_id =
-    v4_fib->table_id =
-        table_id;
+    // fib 
+    fib_table->ft_table_id = v4_fib->table_id = table_id;
     fib_table->ft_flow_hash_config = IP_FLOW_HASH_DEFAULT;
     
     fib_table_lock(fib_table->ft_index, FIB_PROTOCOL_IP4, src);
