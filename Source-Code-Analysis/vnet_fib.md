@@ -100,7 +100,7 @@ typedef struct fib_table_t_
 } fib_table_t;
 ```
 
-### 创建FIB表
+### 创建IPv4路由表
 
 ```
 /**
@@ -140,8 +140,7 @@ ip4_create_fib_with_table_id (u32 table_id,
     pool_get_aligned(ip4_main.v4_fibs, v4_fib, CLIB_CACHE_LINE_BYTES);
     clib_mem_set_heap (old_heap);
 
-    ASSERT((fib_table - ip4_main.fibs) ==
-           (v4_fib - ip4_main.v4_fibs));
+    ASSERT((fib_table - ip4_main.fibs) == (v4_fib - ip4_main.v4_fibs));
 
     // which protocol this table servers.
     fib_table->ft_proto = FIB_PROTOCOL_IP4;
@@ -149,13 +148,16 @@ ip4_create_fib_with_table_id (u32 table_id,
     fib_table->ft_index = v4_fib->index = (fib_table - ip4_main.fibs);
 
     // Hash table mapping table id to fib index. ID space is not necessarily dense; index space is dense.
+    // key->table_id, value->fib_table->ft_index
     hash_set (ip4_main.fib_index_by_table_id, table_id, fib_table->ft_index);
-    // fib 
+    // 统一赋table id
     fib_table->ft_table_id = v4_fib->table_id = table_id;
+    // 配置流hash计算方法，默认为5元组
     fib_table->ft_flow_hash_config = IP_FLOW_HASH_DEFAULT;
     
     fib_table_lock(fib_table->ft_index, FIB_PROTOCOL_IP4, src);
 
+    // 初始化用于转发的mtrie树
     ip4_mtrie_init(&v4_fib->mtrie);
 
     /*
@@ -163,19 +165,23 @@ ip4_create_fib_with_table_id (u32 table_id,
      */
     int ii;
 
+    // 向fib table中添加一些特殊前缀的路由，0.0.0.0/0，0.0.0.0/32，240.0.0.0/4，224.0.0.0/4，255.255.255.255/32
     for (ii = 0; ii < ARRAY_LEN(ip4_specials); ii++)
     {
-    fib_prefix_t prefix = ip4_specials[ii].ift_prefix;
+      // 前缀
+      fib_prefix_t prefix = ip4_specials[ii].ift_prefix;
+      
+      // 前缀地址赋值
+      prefix.fp_addr.ip4.data_u32 = clib_host_to_net_u32(prefix.fp_addr.ip4.data_u32);
 
-    prefix.fp_addr.ip4.data_u32 =
-        clib_host_to_net_u32(prefix.fp_addr.ip4.data_u32);
-
-    fib_table_entry_special_add(fib_table->ft_index,
+      // 路由插入到fib table中
+      fib_table_entry_special_add(fib_table->ft_index,
                     &prefix,
                     ip4_specials[ii].ift_source,
                     ip4_specials[ii].ift_flag);
     }
 
+    // 返回table index
     return (fib_table->ft_index);
 }
 ```
