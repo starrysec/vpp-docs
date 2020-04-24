@@ -7,6 +7,7 @@
 ### 配置
 
 源代码位于`vnet/lawful-intercept/lawful-intercept.c`文件中。
+合法监听模块依赖于`classify`模块，因此需要先配置`classify`模块获取想要监听的流量，然后在本模块中完成数据监听处理。
 
 ```
 VLIB_CLI_COMMAND (set_li_command, static) = {
@@ -102,6 +103,8 @@ set_li_command_fn (vlib_main_t * vm,
 ### 处理
 
 源代码位于`vnet/lawful-intercept/node.c`文件中。
+
+`li-hit`节点的前一个节点是`l2-input-classify`，因此`li-hit`配置需要依赖`classify`模块。
 
 ```
 VLIB_REGISTER_NODE (li_hit_node) = {
