@@ -209,56 +209,65 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
       if (outer_type == VNET_FLOW_TYPE_UNKNOWN)
         return clib_error_return (0, "Please specify a supported flow type");
 
+      // 以太网流
       if (outer_type == VNET_FLOW_TYPE_ETHERNET)
         type = VNET_FLOW_TYPE_ETHERNET;
+      // ipv4流
       else if (outer_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
-	  {
-	    type = VNET_FLOW_TYPE_IP4_N_TUPLE;
+      {
+        type = VNET_FLOW_TYPE_IP4_N_TUPLE;
 
-	    if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
-	    {
-	      if (is_gtpc_set)
+        // ipv4-gtpc ipv4-gtpu
+	if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
+	{
+	  if (is_gtpc_set)
             type = VNET_FLOW_TYPE_IP4_GTPC;
-	      else if (is_gtpu_set)
+	  else if (is_gtpu_set)
             type = VNET_FLOW_TYPE_IP4_GTPU;
-	    }
-	    else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
-	    {
-	      if (is_gtpu_set)
-            type = VNET_FLOW_TYPE_IP4_GTPU_IP4;
-	    }
-	    else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
-	    {
-	      if (is_gtpu_set)
-            type = VNET_FLOW_TYPE_IP4_GTPU_IP6;
-	    }
-	  }
+	 }
+	 // ipv4-gtpu-ipv4
+	 else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
+	 {
+	   if (is_gtpu_set)
+             type = VNET_FLOW_TYPE_IP4_GTPU_IP4;
+	 }
+	 // ipv4-gtpu-ipv6
+	 else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
+	 {
+	   if (is_gtpu_set)
+             type = VNET_FLOW_TYPE_IP4_GTPU_IP6;
+	 }
+      }
+      // ipv6流
       else if (outer_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
-	  {
-	    type = VNET_FLOW_TYPE_IP6_N_TUPLE;
+      {
+	 type = VNET_FLOW_TYPE_IP6_N_TUPLE;
 
-	    if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
-	    {
-	      if (is_gtpc_set)
-            type = VNET_FLOW_TYPE_IP6_GTPC;
-	      else if (is_gtpu_set)
-            type = VNET_FLOW_TYPE_IP6_GTPU;
-	    }
-	    else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
-	    {
-	      if (is_gtpu_set)
-            type = VNET_FLOW_TYPE_IP6_GTPU_IP4;
-	    }
-	    else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
-	    {
-	      if (is_gtpu_set)
-            type = VNET_FLOW_TYPE_IP6_GTPU_IP6;
-	    }
-	  }
+         // ipv6-gtpc ipv6-gtpu
+	 if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
+	 {
+	   if (is_gtpc_set)
+             type = VNET_FLOW_TYPE_IP6_GTPC;
+	   else if (is_gtpu_set)
+             type = VNET_FLOW_TYPE_IP6_GTPU;
+	 }
+	 // ipv6-gtpu-ipv4
+	 else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
+	 {
+	   if (is_gtpu_set)
+             type = VNET_FLOW_TYPE_IP6_GTPU_IP4;
+	 }
+	 // ipv6-gtpu-ipv6
+	 else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
+	 {
+	   if (is_gtpu_set)
+             type = VNET_FLOW_TYPE_IP6_GTPU_IP6;
+	 }
+      }
 
       //assign specific field values per flow type
       switch (type)
-	  {
+      {
 	  case VNET_FLOW_TYPE_ETHERNET:
 	    memset (&flow.ethernet, 0, sizeof (flow.ethernet));
 	    flow.ethernet.eth_hdr.type = eth_type;
@@ -354,24 +363,28 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 
 	  default:
 	    break;
-	  }
+     }
 
       flow.type = type;
+      // 添加流
       rv = vnet_flow_add (vnm, &flow, &flow_index);
       if (!rv)
-	    printf ("flow %u added\n", flow_index);
+        printf ("flow %u added\n", flow_index);
 
       break;
     // 删除
     case FLOW_DEL:
+      // 删除流
       rv = vnet_flow_del (vnm, flow_index);
       break;
     // 启用
     case FLOW_ENABLE:
+      // 启用流
       rv = vnet_flow_enable (vnm, flow_index, hw_if_index);
       break;
     // 禁用
     case FLOW_DISABLE:
+      // 禁用流
       rv = vnet_flow_disable (vnm, flow_index, hw_if_index);
       break;
     default:
