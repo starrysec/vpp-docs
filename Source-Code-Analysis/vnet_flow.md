@@ -30,6 +30,7 @@
 
 | 流类型 | 哈希计算输入 |
 | -------- | -------- |
+| ethernet | s-mac,d-mac,type |
 | ipv4-n-tuple | s-ip,d-ip,s-port,d-port,proto |
 | ipv4-vxlan | s-sip,d-ip,d-port,vni |
 | ipv4-gtpc | s-ip,d-ip,s-port,d-port,proto,teid |
@@ -188,100 +189,101 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 
   switch (action)
   {
+    // 添加
     case FLOW_ADD:
       if (flow.actions == 0)
-	return clib_error_return (0, "Please specify at least one action");
+        return clib_error_return (0, "Please specify at least one action");
 
       /* Adjust the flow type */
       if (ethernet_set == true)
-	outer_type = VNET_FLOW_TYPE_ETHERNET;
+        outer_type = VNET_FLOW_TYPE_ETHERNET;
       if (outer_ip4_set == true)
-	outer_type = VNET_FLOW_TYPE_IP4_N_TUPLE;
+        outer_type = VNET_FLOW_TYPE_IP4_N_TUPLE;
       else if (outer_ip6_set == true)
-	outer_type = VNET_FLOW_TYPE_IP6_N_TUPLE;
+        outer_type = VNET_FLOW_TYPE_IP6_N_TUPLE;
       if (inner_ip4_set == true)
-	inner_type = VNET_FLOW_TYPE_IP4_N_TUPLE;
+        inner_type = VNET_FLOW_TYPE_IP4_N_TUPLE;
       else if (inner_ip6_set == true)
-	inner_type = VNET_FLOW_TYPE_IP6_N_TUPLE;
+        inner_type = VNET_FLOW_TYPE_IP6_N_TUPLE;
 
       if (outer_type == VNET_FLOW_TYPE_UNKNOWN)
-	return clib_error_return (0, "Please specify a supported flow type");
+        return clib_error_return (0, "Please specify a supported flow type");
 
       if (outer_type == VNET_FLOW_TYPE_ETHERNET)
-	type = VNET_FLOW_TYPE_ETHERNET;
+        type = VNET_FLOW_TYPE_ETHERNET;
       else if (outer_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
-	{
-	  type = VNET_FLOW_TYPE_IP4_N_TUPLE;
+	  {
+	    type = VNET_FLOW_TYPE_IP4_N_TUPLE;
 
-	  if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
+	    if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
 	    {
 	      if (is_gtpc_set)
-		type = VNET_FLOW_TYPE_IP4_GTPC;
+            type = VNET_FLOW_TYPE_IP4_GTPC;
 	      else if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP4_GTPU;
+            type = VNET_FLOW_TYPE_IP4_GTPU;
 	    }
-	  else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
+	    else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
 	    {
 	      if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP4_GTPU_IP4;
+            type = VNET_FLOW_TYPE_IP4_GTPU_IP4;
 	    }
-	  else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
+	    else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
 	    {
 	      if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP4_GTPU_IP6;
+            type = VNET_FLOW_TYPE_IP4_GTPU_IP6;
 	    }
-	}
+	  }
       else if (outer_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
-	{
-	  type = VNET_FLOW_TYPE_IP6_N_TUPLE;
+	  {
+	    type = VNET_FLOW_TYPE_IP6_N_TUPLE;
 
-	  if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
+	    if (inner_type == VNET_FLOW_TYPE_UNKNOWN)
 	    {
 	      if (is_gtpc_set)
-		type = VNET_FLOW_TYPE_IP6_GTPC;
+            type = VNET_FLOW_TYPE_IP6_GTPC;
 	      else if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP6_GTPU;
+            type = VNET_FLOW_TYPE_IP6_GTPU;
 	    }
-	  else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
+	    else if (inner_type == VNET_FLOW_TYPE_IP4_N_TUPLE)
 	    {
 	      if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP6_GTPU_IP4;
+            type = VNET_FLOW_TYPE_IP6_GTPU_IP4;
 	    }
-	  else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
+	    else if (inner_type == VNET_FLOW_TYPE_IP6_N_TUPLE)
 	    {
 	      if (is_gtpu_set)
-		type = VNET_FLOW_TYPE_IP6_GTPU_IP6;
+            type = VNET_FLOW_TYPE_IP6_GTPU_IP6;
 	    }
-	}
+	  }
 
       //assign specific field values per flow type
       switch (type)
-	{
-	case VNET_FLOW_TYPE_ETHERNET:
-	  memset (&flow.ethernet, 0, sizeof (flow.ethernet));
-	  flow.ethernet.eth_hdr.type = eth_type;
-	  break;
+	  {
+	  case VNET_FLOW_TYPE_ETHERNET:
+	    memset (&flow.ethernet, 0, sizeof (flow.ethernet));
+	    flow.ethernet.eth_hdr.type = eth_type;
+	    break;
 
-	case VNET_FLOW_TYPE_IP4_N_TUPLE:
-	case VNET_FLOW_TYPE_IP4_GTPC:
-	case VNET_FLOW_TYPE_IP4_GTPU:
-	case VNET_FLOW_TYPE_IP4_GTPU_IP4:
-	case VNET_FLOW_TYPE_IP4_GTPU_IP6:
-	  clib_memcpy (&flow.ip4_n_tuple.src_addr, &ip4s,
+	  case VNET_FLOW_TYPE_IP4_N_TUPLE:
+	  case VNET_FLOW_TYPE_IP4_GTPC:
+	  case VNET_FLOW_TYPE_IP4_GTPU:
+	  case VNET_FLOW_TYPE_IP4_GTPU_IP4:
+	  case VNET_FLOW_TYPE_IP4_GTPU_IP6:
+	    clib_memcpy (&flow.ip4_n_tuple.src_addr, &ip4s,
 		       sizeof (ip4_address_and_mask_t));
-	  clib_memcpy (&flow.ip4_n_tuple.dst_addr, &ip4d,
+	    clib_memcpy (&flow.ip4_n_tuple.dst_addr, &ip4d,
 		       sizeof (ip4_address_and_mask_t));
-	  clib_memcpy (&flow.ip4_n_tuple.src_port, &sport,
+	    clib_memcpy (&flow.ip4_n_tuple.src_port, &sport,
 		       sizeof (ip_port_and_mask_t));
-	  clib_memcpy (&flow.ip4_n_tuple.dst_port, &dport,
+	    clib_memcpy (&flow.ip4_n_tuple.dst_port, &dport,
 		       sizeof (ip_port_and_mask_t));
-	  flow.ip4_n_tuple.protocol = prot;
+	    flow.ip4_n_tuple.protocol = prot;
 
-	  if (type == VNET_FLOW_TYPE_IP4_GTPC)
-	    flow.ip4_gtpc.teid = teid;
-	  else if (type == VNET_FLOW_TYPE_IP4_GTPU)
-	    flow.ip4_gtpu.teid = teid;
-	  else if (type == VNET_FLOW_TYPE_IP4_GTPU_IP4)
+	    if (type == VNET_FLOW_TYPE_IP4_GTPC)
+	      flow.ip4_gtpc.teid = teid;
+	    else if (type == VNET_FLOW_TYPE_IP4_GTPU)
+	      flow.ip4_gtpu.teid = teid;
+	    else if (type == VNET_FLOW_TYPE_IP4_GTPU_IP4)
 	    {
 	      flow.ip4_gtpu_ip4.teid = teid;
 	      clib_memcpy (&flow.ip4_gtpu_ip4.inner_src_addr, &inner_ip4s,
@@ -289,7 +291,7 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 	      clib_memcpy (&flow.ip4_gtpu_ip4.inner_dst_addr, &inner_ip4d,
 			   sizeof (ip4_address_and_mask_t));
 	    }
-	  else if (type == VNET_FLOW_TYPE_IP4_GTPU_IP6)
+	    else if (type == VNET_FLOW_TYPE_IP4_GTPU_IP6)
 	    {
 	      flow.ip4_gtpu_ip6.teid = teid;
 	      clib_memcpy (&flow.ip4_gtpu_ip6.inner_src_addr, &inner_ip6s,
@@ -298,34 +300,34 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 			   sizeof (ip6_address_and_mask_t));
 	    }
 
-	  if (flow.ip4_n_tuple.protocol == (ip_protocol_t) ~ 0)
-	    return clib_error_return (0, "Please specify ip protocol");
-	  if ((type != VNET_FLOW_TYPE_IP4_N_TUPLE) &&
+	    if (flow.ip4_n_tuple.protocol == (ip_protocol_t) ~ 0)
+	      return clib_error_return (0, "Please specify ip protocol");
+	    if ((type != VNET_FLOW_TYPE_IP4_N_TUPLE) &&
 	      (flow.ip4_n_tuple.protocol != IP_PROTOCOL_UDP))
-	    return clib_error_return (0,
+	      return clib_error_return (0,
 				      "For GTP related flow, ip protocol must be UDP");
-	  break;
+	    break;
 
-	case VNET_FLOW_TYPE_IP6_N_TUPLE:
-	case VNET_FLOW_TYPE_IP6_GTPC:
-	case VNET_FLOW_TYPE_IP6_GTPU:
-	case VNET_FLOW_TYPE_IP6_GTPU_IP4:
-	case VNET_FLOW_TYPE_IP6_GTPU_IP6:
-	  clib_memcpy (&flow.ip6_n_tuple.src_addr, &ip6s,
+	  case VNET_FLOW_TYPE_IP6_N_TUPLE:
+	  case VNET_FLOW_TYPE_IP6_GTPC:
+	  case VNET_FLOW_TYPE_IP6_GTPU:
+	  case VNET_FLOW_TYPE_IP6_GTPU_IP4:
+	  case VNET_FLOW_TYPE_IP6_GTPU_IP6:
+	    clib_memcpy (&flow.ip6_n_tuple.src_addr, &ip6s,
 		       sizeof (ip6_address_and_mask_t));
-	  clib_memcpy (&flow.ip6_n_tuple.dst_addr, &ip6d,
+	    clib_memcpy (&flow.ip6_n_tuple.dst_addr, &ip6d,
 		       sizeof (ip6_address_and_mask_t));
-	  clib_memcpy (&flow.ip6_n_tuple.src_port, &sport,
+	    clib_memcpy (&flow.ip6_n_tuple.src_port, &sport,
 		       sizeof (ip_port_and_mask_t));
-	  clib_memcpy (&flow.ip6_n_tuple.dst_port, &dport,
+	    clib_memcpy (&flow.ip6_n_tuple.dst_port, &dport,
 		       sizeof (ip_port_and_mask_t));
-	  flow.ip6_n_tuple.protocol = prot;
+	    flow.ip6_n_tuple.protocol = prot;
 
-	  if (type == VNET_FLOW_TYPE_IP6_GTPC)
-	    flow.ip6_gtpc.teid = teid;
-	  else if (type == VNET_FLOW_TYPE_IP6_GTPU)
-	    flow.ip6_gtpu.teid = teid;
-	  else if (type == VNET_FLOW_TYPE_IP6_GTPU_IP4)
+	    if (type == VNET_FLOW_TYPE_IP6_GTPC)
+	      flow.ip6_gtpc.teid = teid;
+	    else if (type == VNET_FLOW_TYPE_IP6_GTPU)
+	      flow.ip6_gtpu.teid = teid;
+	    else if (type == VNET_FLOW_TYPE_IP6_GTPU_IP4)
 	    {
 	      flow.ip6_gtpu_ip4.teid = teid;
 	      clib_memcpy (&flow.ip6_gtpu_ip4.inner_src_addr, &inner_ip4s,
@@ -333,7 +335,7 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 	      clib_memcpy (&flow.ip6_gtpu_ip4.inner_dst_addr, &inner_ip4d,
 			   sizeof (ip4_address_and_mask_t));
 	    }
-	  else if (type == VNET_FLOW_TYPE_IP6_GTPU_IP6)
+	    else if (type == VNET_FLOW_TYPE_IP6_GTPU_IP6)
 	    {
 	      flow.ip6_gtpu_ip6.teid = teid;
 	      clib_memcpy (&flow.ip6_gtpu_ip6.inner_src_addr, &inner_ip6s,
@@ -342,30 +344,33 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 			   sizeof (ip6_address_and_mask_t));
 	    }
 
-	  if (flow.ip6_n_tuple.protocol == (ip_protocol_t) ~ 0)
-	    return clib_error_return (0, "Please specify ip protocol");
-	  if ((type != VNET_FLOW_TYPE_IP4_N_TUPLE) &&
+	    if (flow.ip6_n_tuple.protocol == (ip_protocol_t) ~ 0)
+	      return clib_error_return (0, "Please specify ip protocol");
+	    if ((type != VNET_FLOW_TYPE_IP4_N_TUPLE) &&
 	      (flow.ip6_n_tuple.protocol != IP_PROTOCOL_UDP))
-	    return clib_error_return (0,
+	      return clib_error_return (0,
 				      "For GTP related flow, ip protocol must be UDP");
-	  break;
+	    break;
 
-	default:
-	  break;
-	}
+	  default:
+	    break;
+	  }
 
       flow.type = type;
       rv = vnet_flow_add (vnm, &flow, &flow_index);
       if (!rv)
-	printf ("flow %u added\n", flow_index);
+	    printf ("flow %u added\n", flow_index);
 
       break;
+    // 删除
     case FLOW_DEL:
       rv = vnet_flow_del (vnm, flow_index);
       break;
+    // 启用
     case FLOW_ENABLE:
       rv = vnet_flow_enable (vnm, flow_index, hw_if_index);
       break;
+    // 禁用
     case FLOW_DISABLE:
       rv = vnet_flow_disable (vnm, flow_index, hw_if_index);
       break;
