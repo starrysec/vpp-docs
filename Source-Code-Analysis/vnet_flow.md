@@ -402,12 +402,12 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
       break;
     // 启用
     case FLOW_ENABLE:
-      // 启用流
+      // 启用接口流功能
       rv = vnet_flow_enable (vnm, flow_index, hw_if_index);
       break;
     // 禁用
     case FLOW_DISABLE:
-      // 禁用流
+      // 禁用接口流功能
       rv = vnet_flow_disable (vnm, flow_index, hw_if_index);
       break;
     default:
@@ -417,6 +417,155 @@ test_flow (vlib_main_t * vm, unformat_input_t * input,
 
   if (rv < 0)
     return clib_error_return (0, "flow error: %U", format_flow_error, rv);
+  return 0;
+}
+```
+
+**添加流**
+
+```
+int
+vnet_flow_add (vnet_main_t * vnm, vnet_flow_t * flow, u32 * flow_index)
+{
+  vnet_flow_main_t *fm = &flow_main;
+  vnet_flow_t *f;
+
+  // 从flow池中申请flow
+  pool_get (fm->global_flow_pool, f);
+  // 计算flow索引
+  *flow_index = f - fm->global_flow_pool;
+  // 拷贝flow内容
+  clib_memcpy_fast (f, flow, sizeof (vnet_flow_t));
+  // 赋私有数据
+  f->private_data = 0;
+  // 赋flow索引
+  f->index = *flow_index;
+  return 0;
+}
+```
+
+**删除流**
+
+```
+int
+vnet_flow_del (vnet_main_t * vnm, u32 flow_index)
+{
+  vnet_flow_main_t *fm = &flow_main;
+  vnet_flow_t *f = vnet_get_flow (flow_index);
+  uword hw_if_index;
+  uword private_data;
+
+  if (f == 0)
+    return VNET_FLOW_ERROR_NO_SUCH_ENTRY;
+
+  /* *INDENT-OFF* */
+  // 遍历流hash，删除指定接口上的流
+  hash_foreach (hw_if_index, private_data, f->private_data,
+    ({
+     vnet_flow_disable (vnm, flow_index, hw_if_index);
+    }));
+  /* *INDENT-ON* */
+
+  // 释放私有数据内存
+  hash_free (f->private_data);
+  // 初始化flow内存，清空
+  clib_memset (f, 0, sizeof (*f));
+  // 把删除的flow放到flow池中重复利用
+  pool_put (fm->global_flow_pool, f);
+  return 0;
+}
+```
+
+**启用接口流功能**
+
+```
+int
+vnet_flow_enable (vnet_main_t * vnm, u32 flow_index, u32 hw_if_index)
+{
+  vnet_flow_t *f = vnet_get_flow (flow_index);
+  vnet_hw_interface_t *hi;
+  vnet_device_class_t *dev_class;
+  uword private_data;
+  int rv;
+
+  if (f == 0)
+    return VNET_FLOW_ERROR_NO_SUCH_ENTRY;
+
+  if (!vnet_hw_interface_is_valid (vnm, hw_if_index))
+    return VNET_FLOW_ERROR_NO_SUCH_INTERFACE;
+
+  /* don't enable flow twice */
+  if (hash_get (f->private_data, hw_if_index) != 0)
+    return VNET_FLOW_ERROR_ALREADY_DONE;
+  
+  // 根据硬件接口索引，获取硬件接口
+  hi = vnet_get_hw_interface (vnm, hw_if_index);
+  // 获取硬件接口设备类
+  dev_class = vnet_get_device_class (vnm, hi->dev_class_index);
+
+  // 检查硬件接口flow offload操作函数，对于dpdk，flow_ops_function为dpdk_flow_ops_fn(源文件位于`plugins/dpdk/device/flow.c`)
+  if (dev_class->flow_ops_function == 0)
+    return VNET_FLOW_ERROR_NOT_SUPPORTED;
+
+  // flow动作为redirect-to-node
+  if (f->actions & VNET_FLOW_ACTION_REDIRECT_TO_NODE)
+  {
+    vnet_hw_interface_t *hw = vnet_get_hw_interface (vnm, hw_if_index);
+    // 设置hw->input_node_index的next node为f->redirect_node_index
+    f->redirect_device_input_next_index =
+	    vlib_node_add_next (vnm->vlib_main, hw->input_node_index, f->redirect_node_index);
+  }
+
+  // 添加流到硬件接口
+  rv = dev_class->flow_ops_function (vnm, VNET_FLOW_DEV_OP_ADD_FLOW,
+				     hi->dev_instance, flow_index,
+				     &private_data);
+
+  if (rv)
+    return rv;
+
+  // 设置私有数据
+  hash_set (f->private_data, hw_if_index, private_data);
+  return 0;
+}
+```
+
+**禁用接口流功能**
+
+```
+int
+vnet_flow_disable (vnet_main_t * vnm, u32 flow_index, u32 hw_if_index)
+{
+  vnet_flow_t *f = vnet_get_flow (flow_index);
+  vnet_hw_interface_t *hi;
+  vnet_device_class_t *dev_class;
+  uword *p;
+  int rv;
+
+  if (f == 0)
+    return VNET_FLOW_ERROR_NO_SUCH_ENTRY;
+
+  if (!vnet_hw_interface_is_valid (vnm, hw_if_index))
+    return VNET_FLOW_ERROR_NO_SUCH_INTERFACE;
+
+  /* don't disable if not enabled */
+  if ((p = hash_get (f->private_data, hw_if_index)) == 0)
+    return VNET_FLOW_ERROR_ALREADY_DONE;
+
+  // 根据硬件接口索引，获取硬件接口
+  hi = vnet_get_hw_interface (vnm, hw_if_index);
+  // 获取硬件接口设备类
+  dev_class = vnet_get_device_class (vnm, hi->dev_class_index);
+
+  // 从硬件接口删除流
+  rv = dev_class->flow_ops_function (vnm, VNET_FLOW_DEV_OP_DEL_FLOW,
+				     hi->dev_instance, flow_index, p);
+
+  if (rv)
+    return rv;
+
+  // 删除私有数据
+  hash_unset (f->private_data, hw_if_index);
   return 0;
 }
 ```
