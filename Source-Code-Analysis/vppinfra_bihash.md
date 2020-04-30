@@ -530,105 +530,11 @@ void BV (clib_bihash_free) (BVT (clib_bihash) * h)
 ### 接口
 
 ```
-/** Get pointer to value page given its clib mheap offset */
-static inline void *clib_bihash_get_value (clib_bihash * h, uword offset);
+void BV (clib_bihash_init) (BVT (clib_bihash) * h, char *name, u32 nbuckets, uword memory_size);
 
-/** Get clib mheap offset given a pointer */
-static inline uword clib_bihash_get_offset (clib_bihash * h, void *v);
+void BV (clib_bihash_free) (BVT (clib_bihash) * h);
 
-/** initialize a bounded index extensible hash table
+int BV (clib_bihash_add_del) (BVT (clib_bihash) * h, BVT (clib_bihash_kv) * add_v, int is_add);
 
-    @param h - the bi-hash table to initialize
-    @param name - name of the hash table
-    @param nbuckets - the number of buckets, will be rounded up to
-a power of two
-    @param memory_size - clib mheap size, in bytes
-*/
-
-void clib_bihash_init
-  (clib_bihash * h, char *name, u32 nbuckets, uword memory_size);
-
-/** Destroy a bounded index extensible hash table
-    @param h - the bi-hash table to free
-*/
-
-void clib_bihash_free (clib_bihash * h);
-
-/** Add or delete a (key,value) pair from a bi-hash table
-
-    @param h - the bi-hash table to search
-    @param add_v - the (key,value) pair to add
-    @param is_add - add=1, delete=0
-    @returns 0 on success, < 0 on error
-    @note This function will replace an existing (key,value) pair if the
-    new key matches an existing key
-*/
-int clib_bihash_add_del (clib_bihash * h, clib_bihash_kv * add_v, int is_add);
-
-
-/** Search a bi-hash table, use supplied hash code
-
-    @param h - the bi-hash table to search
-    @param hash - the hash code
-    @param in_out_kv - (key,value) pair containing the search key
-    @returns 0 on success (with in_out_kv set), < 0 on error
-*/
-int clib_bihash_search_inline_with_hash
-  (clib_bihash * h, u64 hash, clib_bihash_kv * in_out_kv);
-
-/** Search a bi-hash table
-
-    @param h - the bi-hash table to search
-    @param in_out_kv - (key,value) pair containing the search key
-    @returns 0 on success (with in_out_kv set), < 0 on error
-*/
-int clib_bihash_search_inline (clib_bihash * h, clib_bihash_kv * in_out_kv);
-
-/** Prefetch a bi-hash bucket given a hash code
-
-    @param h - the bi-hash table to search
-    @param hash - the hash code
-    @note see also clib_bihash_hash to compute the code
-*/
-void clib_bihash_prefetch_bucket (clib_bihash * h, u64 hash);
-
-/** Prefetch bi-hash (key,value) data given a hash code
-
-    @param h - the bi-hash table to search
-    @param hash - the hash code
-    @note assumes that the bucket has been prefetched, see
-     clib_bihash_prefetch_bucket
-*/
-void clib_bihash_prefetch_data (clib_bihash * h, u64 hash);
-
-/** Search a bi-hash table
-
-    @param h - the bi-hash table to search
-    @param search_key - (key,value) pair containing the search key
-    @param valuep - (key,value) set to search result
-    @returns 0 on success (with valuep set), < 0 on error
-    @note used in situations where key modification is not desired
-*/
-int clib_bihash_search_inline_2
-  (clib_bihash * h, clib_bihash_kv * search_key, clib_bihash_kv * valuep);
-
-/* Calback function for walking a bihash table
- *
- * @param kv - KV pair visited
- * @param ctx - Context passed to the walk
- * @return BIHASH_WALK_CONTINUE to continue BIHASH_WALK_STOP to stop
- */
-typedef int (*clib_bihash_foreach_key_value_pair_cb) (clib_bihash_kv * kv,
-						      void *ctx);
-
-/** Visit active (key,value) pairs in a bi-hash table
-
-    @param h - the bi-hash table to search
-    @param callback - function to call with each active (key,value) pair
-    @param arg - arbitrary second argument passed to the callback function
-    First argument is the (key,value) pair to visit
-*/
-void clib_bihash_foreach_key_value_pair (clib_bihash * h,
-					 clib_bihash_foreach_key_value_pair_cb
-					 * callback, void *arg);
+int BV (clib_bihash_search) (BVT (clib_bihash) * h, BVT (clib_bihash_kv) * search_v, BVT (clib_bihash_kv) * return_v);
 ```
