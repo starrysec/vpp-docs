@@ -133,8 +133,7 @@ typedef struct
 add/del过程我们以add和del，以及空桶和非空桶进行区别，分为四种情况进行讨论。
 
 ```
-void BV (clib_bihash_init)
-  (BVT (clib_bihash) * h, char *name, u32 nbuckets, uword memory_size)
+void BV (clib_bihash_init) (BVT (clib_bihash) * h, char *name, u32 nbuckets, uword memory_size)
 {
   void *oldheap;
   int i;
@@ -156,7 +155,7 @@ void BV (clib_bihash_init)
   h->writer_lock = clib_mem_alloc_aligned (CLIB_CACHE_LINE_BYTES,
 					   CLIB_CACHE_LINE_BYTES);
   h->writer_lock[0] = 0;
-  //  针对每个bucket 初始化cache
+  //  针对每个bucket初始化cache
   for (i = 0; i < nbuckets; i++)
     BV (clib_bihash_reset_cache) (h->buckets + i);
 
@@ -190,7 +189,9 @@ add/del过程我们以add和del，以及空桶和非空桶进行区别，分为�
 
 **非空桶add**
 
-> 1.找到对应的bucket,(b0)，将b0在h->working_copy[threads_index]中复制一份; 2、将b0 (即,bucket[0]->offset)设在working_copy，即图中b0(add时)，查找时，查找的是working_copy区，增加操作在h->saved_bucke区进行处理，保证线程安全。
+> 1.找到对应的bucket,(b0)，将b0在h->working_copy[threads_index]中复制一份; 
+> 
+> 2、将b0 (即,bucket[0]->offset)设在working_copy，即图中b0(add时)，查找时，查找的是working_copy区，增加操作在h->saved_bucke区进行处理，保证线程安全。
 
 a.不需要扩展的情况，即增加新kvp不会造成冲突：
 
@@ -221,8 +222,7 @@ b.需要扩展的情况：
 > 3.h->saved_bucket.refcnt>1, 则自减1，b0.as_u64 = h->saved_bucket.as_u64 否则free该pages，将其放到freelists中。
 
 ```
-int BV (clib_bihash_add_del)
-  (BVT (clib_bihash) * h, BVT (clib_bihash_kv) * add_v, int is_add)
+int BV (clib_bihash_add_del) (BVT (clib_bihash) * h, BVT (clib_bihash_kv) * add_v, int is_add)
 {
   u32 bucket_index;
   BVT (clib_bihash_bucket) * b, tmp_b;
@@ -435,9 +435,7 @@ unlock:
 > 3.在b0:new_pages 中查找，根据bucket[0]-> linear_search，进行hash或者线型查找，找到，则更新bucket[0]->cache，循环bucket[0]->cache_lru，否则return -1。
 
 ```
-int BV (clib_bihash_search)
-  (BVT (clib_bihash) * h,
-   BVT (clib_bihash_kv) * search_key, BVT (clib_bihash_kv) * valuep)
+int BV (clib_bihash_search) (BVT (clib_bihash) * h, BVT (clib_bihash_kv) * search_key, BVT (clib_bihash_kv) * valuep)
 {
   u64 hash;
   u32 bucket_index;
