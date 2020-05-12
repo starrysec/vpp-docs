@@ -1,18 +1,18 @@
 ## VPP Wiki、Doxygen和其他链接
-有几个地方可以找到vpp相关的有用的信息。
+在以下地方可以找到vpp相关文档和资源。
 
-### FD.io主站
-VPP是FD.io Linux Foundation项目的一部分。描述FD.io Linux基础项目的链接在这里：
+### FD.io官网
+VPP是FD.io Linux Foundation项目的一部分，官网链接如下：
 
 https://fd.io
 
 ### VPP Wiki
-在VPP Wiki上可以找到许多VPP开发人员文档。
+在VPP Wiki上可以找到许多VPP开发人员文档，链接如下：
 
 https://wiki.fd.io/view/VPP
 
 ### 源码文档(Doxygen)
-Doxygen的来源中记录了一些VPP。 这些文档的链接可以在这里找到。
+VPP源码生产的Doxygen文档，链接如下：
 
-https://docs.fd.io/vpp/18.10/
+https://docs.fd.io/vpp/20.01/
 
