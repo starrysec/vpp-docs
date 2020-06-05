@@ -29,6 +29,6 @@
 * 基础库(Vlib)
   - [vlib_node](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/vlib_node.md)
 * 其他(Others)
-  - [compute_flow_hash](https://github.com/penybai/vpp-docs/blob/master/compute_flow_hash.md)
+  - [compute_flow_hash](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/compute_flow_hash.md)
 * [邻接(Adjacency)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Adjacency.md)
 * [路由(Route)](https://github.com/penybai/vpp-docs/blob/master/Source-Code-Analysis/Route.md)
