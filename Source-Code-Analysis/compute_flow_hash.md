@@ -3,6 +3,8 @@
 对于以太网数据包，IPv4和IPv6默认使用5元组（smac/dmac/sip/dip/proto）计算流哈希（对于tcp协议再增加sport/dport），其他默认使用3元组（smac/dmac/etype）计算流哈希。
 当然，也可以通过配置修改流哈希生成规则（flow_hash_config）。
 
+另外还有mpls流哈希计算（文件`vnet/mpls/mpls_lookup.h`中的mpls_compute_flow_hash()函数）和bier流哈希计算（文件`vnet/bier/bier_fwd.h`中的bier_compute_flow_hash()函数）。
+
 ### L2流哈希计算
 
 L2流哈希计算源码位于`vent/l2/l2_input.h`文件中。
