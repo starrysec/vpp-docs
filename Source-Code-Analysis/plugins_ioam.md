@@ -107,19 +107,19 @@ ipfix_collector_node_fn (vlib_main_t * vm,
 	  b0 = vlib_get_buffer (vm, bi0);
 	  b1 = vlib_get_buffer (vm, bi1);
 
-    /* ipfix消息头 */
+    	  /* ipfix消息头 */
 	  ipfix0 = vlib_buffer_get_current (b0);
 	  ipfix1 = vlib_buffer_get_current (b1);
 
-    /* ipfix set */
+    	  /* ipfix set */
 	  set0 = (ipfix_set_header_t *) (ipfix0 + 1);
 	  set1 = (ipfix_set_header_t *) (ipfix1 + 1);
 
-    /* set id */
+    	  /* set id */
 	  set_id0 = (u16) (clib_net_to_host_u32 (set0->set_id_length) >> 16);
 	  set_id1 = (u16) (clib_net_to_host_u32 (set1->set_id_length) >> 16);
 
-    / ipfix client */
+    	  /* 从set id和client节点对应关系中获取ipfix client */
 	  client0 = ipfix_collector_get_client (set_id0);
 	  client1 = ipfix_collector_get_client (set_id1);
 
