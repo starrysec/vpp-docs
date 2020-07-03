@@ -1,6 +1,8 @@
 
 ## iOAM
 
+In-band OAM (iOAM) is an implementation study to record operational information in the packet while the packet traverses a path between two points in the network.
+
 ### ipfixcollector
 
 **处理过程**
