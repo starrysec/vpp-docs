@@ -363,6 +363,18 @@ dpi_set_ip6_flow_bypass_command_fn (vlib_main_t * vm,
 
 ### 处理
 
+#### 节点
+
+```
+ip4-unicast/ip6-unicast arcs
+            |
+            |
+dpi4-input/dpi4-flow-input/dpi6-input/dpi6-flow-input     
+            |
+            |
+ip4-lookup/ip6-lookup
+```
+
 #### plugins/udpi/dpi_node.c
 ```
 VNET_FEATURE_INIT (dpi4_input, static) =
@@ -724,6 +736,9 @@ dpi_detect_application (u8 *payload, u32 payload_len,
 }
 ```
 **dpi4-flow-input**
+
+ip4-flow-input处理流程和ip4-input处理流程相同，区别在于ip4-flow-input依赖硬件网卡的flow director特性将flow处理卸载（offload）到网卡中，提高性能。
+
 ```
 VLIB_REGISTER_NODE (dpi4_flow_input_node) = {
   .name = "dpi4-flow-input",
