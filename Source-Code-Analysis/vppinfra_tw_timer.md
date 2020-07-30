@@ -1,6 +1,6 @@
 ## 时间轮定时器(TimingWheel Timer)
 
-TW定时器模板文件`vppinfra/tw_timer_template.h`定义了定时器的基本参数，具体实例由`vppinfra/tw_timer_*s_*w_*sl.h/c`等文件实现。
+TW定时器模板文件`vppinfra/tw_timer_template.h`定义了定时器的基本参数，具体实例由`vppinfra/tw_timer_*t_*w_*sl.h/c`等文件实现(Xt_Yw_Zsl表示Y个时间轮，每个时间轮Z个插槽，每个插槽X个定时器)。
 
 ### TW定时器原理
 
